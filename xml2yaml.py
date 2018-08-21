@@ -37,6 +37,7 @@ class parseXML(object):
         self.page_width = float(page_attributes[-1][0])
         self.page_height = float(page_attributes[-1][1])
 
+        #self.get_structure()
         text = self.elements.xpath('//text')
         lines = []
         for t in text:
@@ -120,7 +121,7 @@ class parseXML(object):
         self.eliminated = []
         for i, page in enumerate(self.elements.xpath('//page')):
             columns = [[],[]]
-            self.merge_columns(page)
+            #self.merge_columns(page)
             for line in page.xpath('text'):
                 line_dict = self.attribute2dict(line.attrib)
                 line_dict['page'] = i
@@ -137,8 +138,7 @@ class parseXML(object):
             self.ordered_lines += columns[0]+columns[1]
         print(len(self.ordered_lines))
 
-    @staticmethod
-    def merge_columns(page):
+    def merge_columns(self, page):
         lines = page.xpath('text')
         for i, line in enumerate(lines):
             if i != 0:
