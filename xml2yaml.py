@@ -37,21 +37,27 @@ class parseXML(object):
         self.page_width = float(page_attributes[-1][0])
         self.page_height = float(page_attributes[-1][1])
 
-        #self.get_structure()
-        text = self.elements.xpath('//text')
+        self.get_page_structure()
         lines = []
-        for t in text:
-            line = self.attribute2dict(t)
-            if t.text:
-                line['text'] = t.text.strip()
-            else:
-                line['text'] = etree.tostring(t).strip()
-            lines.append(line)
+        for page in self.pages:
+            for line in page:
+                lines.append(line)
 
         self.get_column_size(lines)
         self.get_text_font(lines)
         self.get_header_footer(lines)
-        
+
+    def get_page_structure(self):
+        self.pages = []
+        for i, page in enumerate(self.elements.xpath('//page')):
+            lines = []
+            for line in page.xpath('text'):
+                line_dict = self.attribute2dict(line.attrib)
+                line_dict['text'] = self.get_fulltext(line)
+                line_dict['page'] = i
+                lines.append(line_dict)
+            self.pages.append(lines)
+
     def get_column_size(self, lines):
         lefts = [float(t['left']) for t in lines]
         unique_lefts = Counter(lefts)
@@ -119,22 +125,18 @@ class parseXML(object):
         self.content_columns.sort()
         columns_left = [self.content_columns[:2], self.content_columns[2:]]
         self.eliminated = []
-        for i, page in enumerate(self.elements.xpath('//page')):
+        for i, page in enumerate(self.pages):
             columns = [[],[]]
-            #self.merge_columns(page)
-            for line in page.xpath('text'):
-                line_dict = self.attribute2dict(line.attrib)
-                line_dict['page'] = i
-                line_dict['text'] = self.get_fulltext(line)
+            for line in page:
                 if self.header_footer:
-                    if line_dict['top'] in self.header_footer['top']:
+                   if line['top'] in self.header_footer['top']:
                         continue
-                if float(line_dict['left']) in columns_left[0]:
-                    columns[0].append(line_dict)
-                elif float(line_dict['left']) in columns_left[1]:
-                    columns[1].append(line_dict)
+                if float(line['left']) in columns_left[0]:
+                    columns[0].append(line)
+                elif float(line['left']) in columns_left[1]:
+                    columns[1].append(line)
                 else:
-                    self.eliminated.append(line_dict) 
+                    self.eliminated.append(line) 
             self.ordered_lines += columns[0]+columns[1]
         print(len(self.ordered_lines))
 
