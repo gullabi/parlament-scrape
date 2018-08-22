@@ -24,6 +24,7 @@ class parseXML(object):
 
         self.speaker_font = None
         self.speaker_height = None
+        self.speaker_tree = []
 
     def read_xml(self):
         xml = open(self.filename,'rb').read()
@@ -193,6 +194,8 @@ class parseXML(object):
                              if line['font'] == self.speaker_font and\
                                 line['height'] == self.speaker_height})
         print(self.filename, self.speakers)
+        self.create_speaker_tree()
+        
 
     def get_speaker_properties(self):
         if not self.filtered_lines:
@@ -227,6 +230,24 @@ class parseXML(object):
             raise ValueError('Speaker fonts are not found for %s:\n%s'\
                              %(self.filename,str(font_counter)))
 
+    def create_speaker_tree(self):
+        if not self.speakers:
+            raise ValueError('ERROR: Cannot create speaker trees'\
+                             ' speakers are not parsed')
+        current_speaker = None
+        speaker_discourse = {}
+        for line in self.filtered_lines:
+            if line['text'].strip() in self.speakers:
+                if speaker_discourse:
+                    # append the current discourse to the list
+                    self.speaker_tree.append(speaker_discourse)
+                current_speaker = line['text'].strip()
+                speaker_discourse = {current_speaker:''}
+            else:
+                if current_speaker:
+                    # skips the first pages
+                    speaker_discourse[current_speaker] += line['text']
+
     def output_lines(self):
         with open(self.filename.replace('.xml','_out.yaml'),'w') as w:
             yaml.dump(self.filtered_lines,w)
@@ -235,6 +256,9 @@ class parseXML(object):
                 w.write('%s\n'%line['text'])
         with open(self.filename.replace('.xml','_deleted.yaml'),'w') as w:
             yaml.dump(self.eliminated, w)
+        if self.speaker_tree:
+            with open(self.filename.replace('.xml','_speaker.yaml'),'w') as w:
+                yaml.dump(self.speaker_tree, w)
 
 if __name__ == "__main__":
     main()
