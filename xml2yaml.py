@@ -22,6 +22,9 @@ class parseXML(object):
         self.read_xml()
         self.get_properties()
 
+        self.speaker_font = None
+        self.speaker_height = None
+
     def read_xml(self):
         xml = open(self.filename,'rb').read()
         self.elements = etree.XML(xml)
@@ -124,9 +127,10 @@ class parseXML(object):
 
     def parse_xml(self):
         self.filter_lines()
+        self.get_speakers()
 
     def filter_lines(self):
-        self.ordered_lines = []
+        self.filtered_lines = []
         self.content_columns.sort()
         columns_left = [self.content_columns[:2], self.content_columns[2:]]
         self.eliminated = []
@@ -143,8 +147,8 @@ class parseXML(object):
                     columns[1].append(line)
                 else:
                     self.eliminated.append(line) 
-            self.ordered_lines += columns[0]+columns[1]
-        print(len(self.ordered_lines))
+            self.filtered_lines += columns[0]+columns[1]
+        print(len(self.filtered_lines))
 
     def merge_columns(self, lines):
         new_lines = []
@@ -172,19 +176,6 @@ class parseXML(object):
                     lines.pop(0)
         return new_lines
 
-        for i, line in enumerate(lines):
-            if i != 0:
-                if isclose(float(line['top']),\
-                           float(lines[i-1]['top']),\
-                           abs_tol=1):
-                    if isclose(float(lines[i-1]['left'])+\
-                               float(lines[i-1]['width']),\
-                               float(line['left']),\
-                               abs_tol=1):
-                        # do smt
-                        new_text = lines[i-1]['text']+line['text']
-                        lines[i-1]['text'] = new_text
-
     @staticmethod 
     def attribute2dict(attribute):
         return {key:value for key, value in attribute.items()}
@@ -195,11 +186,52 @@ class parseXML(object):
                                            etree.tostring(line).decode('utf8'))
         return unescape(m.group(2))
 
+    def get_speakers(self):
+        self.get_speaker_properties()
+        self.speakers = set({line['text'].strip():True\
+                             for line in self.filtered_lines\
+                             if line['font'] == self.speaker_font and\
+                                line['height'] == self.speaker_height})
+        print(self.filename, self.speakers)
+
+    def get_speaker_properties(self):
+        if not self.filtered_lines:
+            raise ValueError('ERROR: filtered_lines does not exist, '
+                             'cannot extract speakers ')
+        fonts = [line['font'] for line in self.filtered_lines]
+        font_counter = Counter(fonts).most_common()
+        if font_counter[0][0] != self.text_font:
+            raise ValueError('The most common font in %s is not %s but %s'\
+                             %(self.filename,
+                               self.text_font,
+                               font_counter[0][0]))
+        for font, count in font_counter[1:]:
+            speaker_vs_height = {line['text'].strip().lower():line['height']\
+                            for line in self.filtered_lines\
+                            if line['font'] == font}
+            # dangerous: if key is not unique it will be overwritten
+            for speaker in set(speaker_vs_height):
+                if speaker.lower().startswith('el president') or\
+                   speaker.lower().startswith('la presidenta') or\
+                   speaker.lower().startswith('<b>'):
+                    key = speaker
+                    self.speaker_font = font
+                    self.speaker_height = speaker_vs_height.get(key)
+                    print('Speaker font vs height found for %s, %s'%(font,\
+                                                          self.speaker_height))
+                    break
+            if self.speaker_font:
+                # if speaker font found break from the counter loop
+                break
+        if not self.speaker_font or not self.speaker_height:
+            raise ValueError('Speaker fonts are not found for %s:\n%s'\
+                             %(self.filename,str(font_counter)))
+
     def output_lines(self):
         with open(self.filename.replace('.xml','_out.yaml'),'w') as w:
-            yaml.dump(self.ordered_lines,w)
+            yaml.dump(self.filtered_lines,w)
         with open(self.filename.replace('.xml','.txt'),'w') as w:
-            for line in self.ordered_lines:
+            for line in self.filtered_lines:
                 w.write('%s\n'%line['text'])
         with open(self.filename.replace('.xml','_deleted.yaml'),'w') as w:
             yaml.dump(self.eliminated, w)
