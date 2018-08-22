@@ -127,6 +127,7 @@ class parseXML(object):
         self.eliminated = []
         for i, page in enumerate(self.pages):
             columns = [[],[]]
+            self.merge_columns(page)
             for line in page:
                 if self.header_footer:
                    if line['top'] in self.header_footer['top']:
@@ -140,20 +141,19 @@ class parseXML(object):
             self.ordered_lines += columns[0]+columns[1]
         print(len(self.ordered_lines))
 
-    def merge_columns(self, page):
-        lines = page.xpath('text')
+    def merge_columns(self, lines):
         for i, line in enumerate(lines):
             if i != 0:
-                if isclose(float(line.attrib['top']),\
-                           float(lines[i-1].attrib['top']),\
+                if isclose(float(line['top']),\
+                           float(lines[i-1]['top']),\
                            abs_tol=1):
-                    if isclose(float(lines[i-1].attrib['left'])+\
-                               float(lines[i-1].attrib['width']),\
-                               float(line.attrib['left']),\
+                    if isclose(float(lines[i-1]['left'])+\
+                               float(lines[i-1]['width']),\
+                               float(line['left']),\
                                abs_tol=1):
                         # do smt
-                        new_text = self.get_fulltext(lines[i-1])+\
-                                   self.get_fulltext(line)
+                        new_text = lines[i-1]['text']+line['text']
+                        lines[i-1]['text'] = new_text
 
     @staticmethod 
     def attribute2dict(attribute):
