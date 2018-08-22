@@ -189,11 +189,8 @@ class parseXML(object):
 
     def get_speakers(self):
         self.get_speaker_properties()
-        self.speakers = set({line['text'].strip():True\
-                             for line in self.filtered_lines\
-                             if line['font'] == self.speaker_font and\
-                                line['height'] == self.speaker_height})
-        print(self.filename, self.speakers)
+        self.merge_speakers()
+        #print(self.filename, self.speakers)
         self.create_speaker_tree()
         
 
@@ -230,6 +227,29 @@ class parseXML(object):
             raise ValueError('Speaker fonts are not found for %s:\n%s'\
                              %(self.filename,str(font_counter)))
 
+    def merge_speakers(self):
+        speakers = set({line['text'].strip():True\
+                             for line in self.filtered_lines\
+                             if line['font'] == self.speaker_font and\
+                                line['height'] == self.speaker_height})
+        merged_speakers = []
+        for i, line in enumerate(self.filtered_lines):
+            if i == 0:
+                continue
+            current_sp = line['text'].strip()
+            prior_line = self.filtered_lines[i-1]
+            prior_sp = prior_line['text'].strip()
+            if current_sp in speakers and\
+               prior_sp in speakers:
+                if isclose(float(prior_line['top'])+\
+                           float(prior_line['height']),\
+                           float(line['top']),abs_tol=2):
+                    print('merging speakers',prior_sp,current_sp)
+                    speakers.remove(current_sp)
+                    speakers.remove(prior_sp)
+                    speakers.add(prior_line['text']+line['text'])
+        self.speakers = speakers
+
     def create_speaker_tree(self):
         if not self.speakers:
             raise ValueError('ERROR: Cannot create speaker trees'\
@@ -240,6 +260,9 @@ class parseXML(object):
             if line['text'].strip() in self.speakers:
                 if speaker_discourse:
                     # append the current discourse to the list
+                    if not list(speaker_discourse.values()):
+                        print('WARNING: no text for speaker',\
+                              current_speaker)
                     self.speaker_tree.append(speaker_discourse)
                 current_speaker = line['text'].strip()
                 speaker_discourse = {current_speaker:''}
