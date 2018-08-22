@@ -39,7 +39,12 @@ class parseXML(object):
 
         self.get_page_structure()
         lines = []
-        for page in self.pages:
+        for page in self.pages[2:]:
+            # usually the main text starts after the second page
+            # it is not a problem to skip the cover pages to detect
+            # column size, main text font and the header/footer
+            # in fact in the case of little main text, column extract
+            # does not work correctly
             for line in page:
                 lines.append(line)
 
@@ -127,7 +132,7 @@ class parseXML(object):
         self.eliminated = []
         for i, page in enumerate(self.pages):
             columns = [[],[]]
-            self.merge_columns(page)
+            page = self.merge_columns(page)
             for line in page:
                 if self.header_footer:
                    if line['top'] in self.header_footer['top']:
@@ -142,6 +147,31 @@ class parseXML(object):
         print(len(self.ordered_lines))
 
     def merge_columns(self, lines):
+        new_lines = []
+        while len(lines) != 0:
+            if len(new_lines) == 0:
+                new_lines.append(lines[0])
+                lines.pop(0)
+            else:
+                found_continuation = False
+                if isclose(float(new_lines[-1]['top']),\
+                           float(lines[0]['top']),\
+                           abs_tol=1):
+                    if isclose(float(new_lines[-1]['left'])+\
+                               float(new_lines[-1]['width']),\
+                               float(lines[0]['left']),\
+                               abs_tol=1):
+                        new_text = new_lines[-1]['text']+lines[0]['text']
+                        new_lines[-1]['text'] = new_text
+                        new_lines[-1]['width'] = str(int(new_lines[-1]['width'])+\
+                                                     int(lines[0]['width'])-1)
+                        lines.pop(0)
+                        found_continuation = True
+                if not found_continuation:
+                    new_lines.append(lines[0])
+                    lines.pop(0)
+        return new_lines
+
         for i, line in enumerate(lines):
             if i != 0:
                 if isclose(float(line['top']),\
