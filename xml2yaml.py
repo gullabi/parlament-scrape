@@ -9,6 +9,7 @@ import os
 def main():
     directory = '../../parlament-scrape/xmls'
     out_path = 'yamls'
+    #out_path = 'xml_tests02'
     for filename in os.listdir(directory):
         if filename.endswith('.xml'):
             print(filename)
@@ -19,7 +20,7 @@ def main():
                 p.parse_xml()
                 p.output_lines(out_path=out_path)
             else:
-                print('file exists. skipping...')
+                print('INFO: file exists. skipping...')
 
 
 class parseXML(object):
@@ -42,8 +43,8 @@ class parseXML(object):
                                         for e in self.elements.xpath('//page')]
         page_attributes = list(set(page_attributes))
         if len(page_attributes) > 1:
-            print("Warning: pages of different sizes")
-            print('width, height: ',page_attributes)
+            print("WARNING: pages of different sizes")
+            print(' width, height: ',page_attributes)
         self.page_width = float(page_attributes[-1][0])
         self.page_height = float(page_attributes[-1][1])
 
@@ -74,16 +75,23 @@ class parseXML(object):
                     print(e)
                     print('WARNING: text was not found for')
                     print(etree.tostring(line))
-                    print('inserting empty string')
+                    print(' inserting empty string')
                     line_dict['text'] = ''
                 line_dict['page'] = i
                 lines.append(line_dict)
             self.pages.append(lines)
 
     def get_column_size(self, lines):
+        fraction = 0.75
+        found = False
+        while not found:
+            found = self.detect_column_size(lines,
+                                            fraction_of_lefts=fraction)
+            fraction += 0.025
+
+    def detect_column_size(self, lines, fraction_of_lefts=0.75):
         lefts = [float(t['left']) for t in lines]
         unique_lefts = Counter(lefts)
-        fraction_of_lefts = 0.75
 
         no = sum(unique_lefts.values())
         cumulative = 0
@@ -98,11 +106,14 @@ class parseXML(object):
         elif i == 1:
             self.column_size = 1
         else:
-            raise ValueError('something went wrong with column'\
+            print('WARNING: something went wrong with column'\
                              ' size detection. %i left(s) have '\
-                             '%f of text '%(i+1,fraction_of_lefts))
-        print('%i column(s) detected with the content cols'%self.column_size,
-              self.content_columns)
+                             '%1.3f of text '%(i+1,fraction_of_lefts))
+            return False
+        print('INFO: %i column(s) detected with the content cols'\
+              %self.column_size,
+               self.content_columns)
+        return True
 
     def get_text_font(self, lines):
         fonts = [t['font'] for t in lines]
@@ -216,15 +227,15 @@ class parseXML(object):
 
     def get_speaker_properties(self):
         if not self.filtered_lines:
-            raise ValueError('ERROR: filtered_lines does not exist, '
+            raise ValueError('filtered_lines does not exist, '
                              'cannot extract speakers ')
         fonts = [line['font'] for line in self.filtered_lines]
         font_counter = Counter(fonts).most_common()
         if font_counter[0][0] != self.text_font:
-            raise ValueError('The most common font in %s is not %s but %s'\
-                             %(self.filename,
-                               self.text_font,
-                               font_counter[0][0]))
+            raise ValueError('The most common font in %s is not %s'\
+                             'but %s'%(self.filename,
+                                       self.text_font,
+                                       font_counter[0][0]))
         for font, count in font_counter[1:]:
             speaker_vs_height = {line['text'].strip().lower():line['height']\
                             for line in self.filtered_lines\
@@ -239,8 +250,8 @@ class parseXML(object):
                     key = speaker
                     self.speaker_font = font
                     self.speaker_height = speaker_vs_height.get(key)
-                    print('Speaker font vs height found for %s, %s'%(font,\
-                                                          self.speaker_height))
+                    print('INFO: Speaker font vs height found for %s, %s'\
+                           %(font, self.speaker_height))
                     break
             if self.speaker_font:
                 # if speaker font found, break from the counter loop
