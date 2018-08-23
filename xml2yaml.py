@@ -7,13 +7,15 @@ import re
 import os
 
 def main():
-    directory = 'xml_tests02'
+    directory = '../../parlament-scrape/xmls'
+    out_path = 'yamls'
     for filename in os.listdir(directory):
         if filename.endswith('.xml'):
+            print(filename)
             filepath = os.path.join(directory,filename)
             p = parseXML(filepath)
             p.parse_xml()
-            p.output_lines()
+            p.output_lines(out_path=out_path)
 
 
 class parseXML(object):
@@ -239,13 +241,18 @@ class parseXML(object):
             current_sp = line['text'].strip()
             prior_line = self.filtered_lines[i-1]
             prior_sp = prior_line['text'].strip()
-            if current_sp in speakers and\
-               prior_sp in speakers:
+            if prior_sp in speakers and\
+               line['text'] != self.text_font:
+                # only merges two consecutive lines when the latter 
+                # line has a font different then the main text
+                # this allows for merging lines which have fonts
+                # other than the self.speaker_font
                 if isclose(float(prior_line['top'])+\
                            float(prior_line['height']),\
                            float(line['top']),abs_tol=2):
                     print('merging speakers',prior_sp,current_sp)
-                    speakers.remove(current_sp)
+                    if current_sp in speakers:
+                        speakers.remove(current_sp)
                     speakers.remove(prior_sp)
                     speakers.add(prior_line['text']+line['text'])
         self.speakers = speakers
@@ -271,16 +278,21 @@ class parseXML(object):
                     # skips the first pages
                     speaker_discourse[current_speaker] += line['text']
 
-    def output_lines(self):
-        with open(self.filename.replace('.xml','_out.yaml'),'w') as w:
+    def output_lines(self, out_path=None):
+        if out_path:
+            out_base_filename = os.path.join(out_path,
+                                             os.path.basename(self.filename))
+        else:
+            out_base_filename = self.filename
+        with open(out_base_filename.replace('.xml','_out.yaml'),'w') as w:
             yaml.dump(self.filtered_lines,w)
-        with open(self.filename.replace('.xml','.txt'),'w') as w:
+        with open(out_base_filename.replace('.xml','.txt'),'w') as w:
             for line in self.filtered_lines:
                 w.write('%s\n'%line['text'])
-        with open(self.filename.replace('.xml','_deleted.yaml'),'w') as w:
+        with open(out_base_filename.replace('.xml','_deleted.yaml'),'w') as w:
             yaml.dump(self.eliminated, w)
         if self.speaker_tree:
-            with open(self.filename.replace('.xml','_speaker.yaml'),'w') as w:
+            with open(out_base_filename.replace('.xml','_speaker.yaml'),'w') as w:
                 yaml.dump(self.speaker_tree, w)
 
 if __name__ == "__main__":
