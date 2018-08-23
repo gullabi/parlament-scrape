@@ -12,10 +12,14 @@ def main():
     for filename in os.listdir(directory):
         if filename.endswith('.xml'):
             print(filename)
+            out_file = os.path.join(out_path,filename).replace('.xml','_speaker.yaml')
             filepath = os.path.join(directory,filename)
-            p = parseXML(filepath)
-            p.parse_xml()
-            p.output_lines(out_path=out_path)
+            if not os.path.exists(out_file):
+                p = parseXML(filepath)
+                p.parse_xml()
+                p.output_lines(out_path=out_path)
+            else:
+                print('file exists. skipping...')
 
 
 class parseXML(object):
@@ -64,7 +68,14 @@ class parseXML(object):
             lines = []
             for line in page.xpath('text'):
                 line_dict = self.attribute2dict(line.attrib)
-                line_dict['text'] = self.get_fulltext(line)
+                try:
+                    line_dict['text'] = self.get_fulltext(line)
+                except Exception as e:
+                    print(e)
+                    print('WARNING: text was not found for')
+                    print(etree.tostring(line))
+                    print('inserting empty string')
+                    line_dict['text'] = ''
                 line_dict['page'] = i
                 lines.append(line_dict)
             self.pages.append(lines)
@@ -72,6 +83,7 @@ class parseXML(object):
     def get_column_size(self, lines):
         lefts = [float(t['left']) for t in lines]
         unique_lefts = Counter(lefts)
+        fraction_of_lefts = 0.75
 
         no = sum(unique_lefts.values())
         cumulative = 0
@@ -79,12 +91,18 @@ class parseXML(object):
         for i, t in enumerate(unique_lefts.most_common()):
             cumulative += t[1]
             self.content_columns.append(t[0])
-            if cumulative/no > 0.75:
+            if cumulative/no > fraction_of_lefts:
                 break
         if i == 3:
             self.column_size = 2
         elif i == 1:
             self.column_size = 1
+        else:
+            raise ValueError('something went wrong with column'\
+                             ' size detection. %i left(s) have '\
+                             '%f of text '%(i+1,fraction_of_lefts))
+        print('%i column(s) detected with the content cols'%self.column_size,
+              self.content_columns)
 
     def get_text_font(self, lines):
         fonts = [t['font'] for t in lines]
@@ -215,6 +233,8 @@ class parseXML(object):
             for speaker in set(speaker_vs_height):
                 if speaker.lower().startswith('el president') or\
                    speaker.lower().startswith('la presidenta') or\
+                   speaker.lower().startswith('la vicepresidenta') or\
+                   speaker.lower().startswith('el vicepresident') or\
                    speaker.lower().startswith('<b>'):
                     key = speaker
                     self.speaker_font = font
@@ -223,9 +243,10 @@ class parseXML(object):
                                                           self.speaker_height))
                     break
             if self.speaker_font:
-                # if speaker font found break from the counter loop
+                # if speaker font found, break from the counter loop
                 break
         if not self.speaker_font or not self.speaker_height:
+            print('columns', self.content_columns)
             raise ValueError('Speaker fonts are not found for %s:\n%s'\
                              %(self.filename,str(font_counter)))
 
@@ -278,17 +299,18 @@ class parseXML(object):
                     # skips the first pages
                     speaker_discourse[current_speaker] += line['text']
 
-    def output_lines(self, out_path=None):
+    def output_lines(self, out_path=None, debug=False):
         if out_path:
             out_base_filename = os.path.join(out_path,
                                              os.path.basename(self.filename))
         else:
             out_base_filename = self.filename
-        with open(out_base_filename.replace('.xml','_out.yaml'),'w') as w:
-            yaml.dump(self.filtered_lines,w)
-        with open(out_base_filename.replace('.xml','.txt'),'w') as w:
-            for line in self.filtered_lines:
-                w.write('%s\n'%line['text'])
+        if debug:
+            with open(out_base_filename.replace('.xml','_out.yaml'),'w') as w:
+                yaml.dump(self.filtered_lines,w)
+            with open(out_base_filename.replace('.xml','.txt'),'w') as w:
+                for line in self.filtered_lines:
+                    w.write('%s\n'%line['text'])
         with open(out_base_filename.replace('.xml','_deleted.yaml'),'w') as w:
             yaml.dump(self.eliminated, w)
         if self.speaker_tree:
