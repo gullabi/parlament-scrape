@@ -2,4 +2,5 @@
 *.swp
 *.log
 xml_test*
-yaml*
+yamls/
+venv/
