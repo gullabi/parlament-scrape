@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 
 from pymongo import MongoClient
 from bs4 import BeautifulSoup
@@ -72,7 +73,6 @@ def get_session_meta(session, db):
         print(session)
         sys.exit()
         
-    current_session.get_ple_code()
     if current_session.ple_code:
         if db.backend.find_one({'_id': current_session.ple_code}):
             msg = '%s already in db. skipping'%current_session.ple_code
@@ -118,12 +118,49 @@ class PleDB(object):
 class Session(object):
     def __init__(self, url, date, name, duration):
         self.__dict__.update(locals())
+        self.get_ple_code()
 
     def __str__(self):
         return str(self.__dict__)
 
     def get_ple_code(self):
+        self.get_act_links()
+        self.get_act_interventions(self.act_urls[-1])
         self.ple_code = None
+
+    def get_act_links(self):
+        html = request_html(urljoin(base, self.url))
+        soup = BeautifulSoup(html, 'html.parser')
+        act_list = soup.find('ul', attrs={'class':'pagina_llistat'})
+        self.act_urls = [element.get('href') for element in act_list.find_all('a')]
+
+    def get_act_interventions(self, url):
+        html = request_html(urljoin(base, url))
+        soup = BeautifulSoup(html, 'html.parser')
+        ls = soup.find('ul', attrs={'class':'llista_videos'})
+        interventions = []
+        for intervention_el in ls.find_all('li'):
+            for element in intervention_el.find_all('p'):
+                formatted_date = re.search('(\d\d)/(\d\d)/(\d{4})', element.text)
+                if formatted_date:
+                    date = formatted_date.group()
+                else:
+                    if 'Intervinent' in element.text:
+                        intervinent = element.text
+                        intervinent_links = [links.get('href')\
+                                             for links in element.find_all('a')]
+                    elif 'Diari' in element.text:
+                        diari_url = element.find('a').get('href')
+                        diari_code, page = os.path.basename(diari_url).split('.')
+                        m = re.search('(?<=page\=)\d+',page)
+                        if m:
+                            page = m.group()
+                        else:
+                            msg = 'page not found in %s'%page
+                            raise ValueError(msg)
+                    elif 'Durada' in element.text:
+                        #TODO start end time and the duration
+                        pass 
 
     def get_interventions(self):
         self.interventions = None
