@@ -1,4 +1,5 @@
 import os
+import sys
 
 from pymongo import MongoClient
 from bs4 import BeautifulSoup
@@ -47,21 +48,46 @@ def extract_sessions(url):
     return sessions
 
 def parse_for_sessions(soup):
-    #TODO
-    return [] 
+    sessions = []
+    key_convert = {'Data':'date', 'Durada':'duration'}
+    llista = soup.find('ul', attrs={'class':'llista_videos'})
+    for element in llista.find_all('h2'):
+        session = {}
+        div = element.find_parent()
+        session['url'] = div.find('a').get('href')
+        session['name'] = div.find('a').text
+        for p in div.find_all('p'):
+            # we expet to find Data: <date> or Durada: <duration>
+            if ':' in p.text:
+                key, value = p.text.split(':')
+                session[key_convert[key.strip()]] = value.strip()
+        sessions.append(session)
+    return sessions
 
 def get_session_meta(session, db):
-    current_session = Session(session)
+    try:
+        current_session = Session(**session)
+    except TypeError as e:
+        print(e)
+        print(session)
+        sys.exit()
+        
     current_session.get_ple_code()
-    if db.backend.find_one({'_id': current_session.ple_code}):
-        msg = '%s already in db. skipping'%current_session.ple_code
-        print(msg)
-        #logging.info(msg)
-    current_session.get_interventions()
-    db.backend.insert(current_session.ple_code, current_session.meta_to_dict())
-    msg = '%s with %i interventions inserted to db'\
-           %(current_session.ple_code, current_sessions.no_interventions)
-    print(msg)
+    if current_session.ple_code:
+        if db.backend.find_one({'_id': current_session.ple_code}):
+            msg = '%s already in db. skipping'%current_session.ple_code
+            print(msg)
+            #logging.info(msg)
+        else:
+            current_session.get_interventions()
+            db.backend.insert(current_session.ple_code,
+                              current_session.meta_to_dict())
+            msg = '%s with %i interventions inserted to db'\
+                 %(current_session.ple_code, current_sessions.no_interventions)
+            print(msg)
+    else:
+        msg = 'no ple_code found for %s'%str(current_session)
+        raise ValueError(msg)
 
 class PleDB(object):
     def __init__(self, task_name='v1'):
@@ -90,8 +116,11 @@ class PleDB(object):
             logging.info(msg)
 
 class Session(object):
-    def __init__(self, ple_code, date, name):
+    def __init__(self, url, date, name, duration):
         self.__dict__.update(locals())
+
+    def __str__(self):
+        return str(self.__dict__)
 
     def get_ple_code(self):
         self.ple_code = None

@@ -16,7 +16,6 @@ def main():
     sessions = scrape_sessions()
     #sessions = yaml.load(open('sessions.yml'))
     download_session_files(sessions)
-            
 
 def scrape_sessions():
     pages = [sessions_pages%(i+1) for i in range(20)]
