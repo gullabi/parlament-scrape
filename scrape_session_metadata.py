@@ -1,21 +1,54 @@
 import os
 
 from pymongo import MongoClient
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
-base = 'https://www.parlament.cat'
-sessions_meta_pages = base+'/web/canal-parlament/activitat/plens/index.html'
-outfile = ''
+from scrape_sessions import request_html
+
+base = 'https://www.parlament.cat/'
+sessions_meta_pages = urljoin(base,
+                             '/web/canal-parlament/activitat/plens/index.html')
 
 def main():
     db = PleDB(task_name='test')
     db.connect()
     get_all_session_metadata(db)
-    #wo data
 
 def get_all_session_metadata(db):
     sessions = get_session_list()
     for session in sessions:
         get_session_meta(session, db)
+
+def get_session_list():
+    msg = "scraping the list of sessions"
+    print(msg)
+    pages = get_session_pages()
+    sessions = []
+    for page in pages:
+        sessions += extract_sessions(page)
+    msg = "%i sessions extracted from %i pages"%(len(sessions), len(pages))
+    print(msg)
+    return sessions
+
+def get_session_pages():
+    no_pages = get_page_no()
+    return [urljoin(sessions_meta_pages,'?p_cp20=',page_no+1) \
+            for page_no in range(no_pages)] 
+
+def get_page_no():
+    #TODO
+    return 1
+
+def extract_sessions(url):
+    html = request_html(url)
+    soup = BeautifulSoup(html,'html.parser')
+    sessions = parse_for_sessions(soup)
+    return sessions
+
+def parse_for_sessions(soup):
+    #TODO
+    return [] 
 
 def get_session_meta(session, db):
     current_session = Session(session)
@@ -68,3 +101,6 @@ class Session(object):
 
     def meta_to_dict(self):
         return {}
+
+if __name__ == "__main__":
+    main()
