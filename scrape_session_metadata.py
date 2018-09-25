@@ -72,7 +72,7 @@ def get_session_meta(session, db):
         print(e)
         print(session)
         sys.exit()
-        
+
     if current_session.ple_code:
         if db.backend.find_one({'_id': current_session.ple_code}):
             msg = '%s already in db. skipping'%current_session.ple_code
@@ -80,8 +80,8 @@ def get_session_meta(session, db):
             #logging.info(msg)
         else:
             current_session.get_interventions()
-            db.backend.insert(current_session.ple_code,
-                              current_session.meta_to_dict())
+            db.insert(current_session.ple_code,
+                      current_session.meta_to_dict())
             msg = '%s with %i interventions inserted to db'\
                  %(current_session.ple_code, current_sessions.no_interventions)
             print(msg)
@@ -119,33 +119,30 @@ class Session(object):
     def __init__(self, url, date, name, duration):
         self.__dict__.update(locals())
         self.get_ple_code()
+        self.interventions = []
 
     def __str__(self):
         return str(self.__dict__)
 
     def get_ple_code(self):
+        '''Extracts the ple_code by scraping only the first
+           intervention
+        '''
         self.get_act_links()
-        self.get_act_interventions(self.act_urls[-1])
-        self.ple_code = None
+        html = request_html(urljoin(base, self.act_urls[-1]))
+        soup = BeautifulSoup(html, 'html.parser')
+        ls = soup.find('ul', attrs={'class':'llista_videos'})
+        for intervention_el in ls.findChildren('li', recursive=False):
+            intervention = self.get_act_intervention(intervention_el)
+            if intervention['ple_code']:
+                self.ple_code = intervention['ple_code']
+                break
 
     def get_act_links(self):
         html = request_html(urljoin(base, self.url))
         soup = BeautifulSoup(html, 'html.parser')
         act_list = soup.find('ul', attrs={'class':'pagina_llistat'})
         self.act_urls = [element.get('href') for element in act_list.find_all('a')]
-
-    def get_act_interventions(self, url):
-        html = request_html(urljoin(base, url))
-        soup = BeautifulSoup(html, 'html.parser')
-        ls = soup.find('ul', attrs={'class':'llista_videos'})
-        self.interventions = []
-        for intervention_el in ls.findChildren('li', recursive=False):
-            if intervention_el.find_all('p'): 
-                intervention = self.get_act_intervention(intervention_el)
-                self.interventions.append(intervention)
-            else:
-                msg = 'no paragraphs found in %s'%intervention_el
-                print('WARNING:', msg)
 
     @staticmethod 
     def get_act_intervention(intervention_el):
@@ -206,7 +203,27 @@ class Session(object):
         return intervention
 
     def get_interventions(self):
-        self.interventions = None
+        if not self.act_urls:
+            self.get_act_links()
+        if self.interventions:
+            msg = 'session already has interventions'
+            print('WARNING:', msg)
+        for url in self.act_urls[:1]:
+            self.interventions += self.get_act_interventions(url)
+
+    def get_act_interventions(self, url):
+        html = request_html(urljoin(base, url))
+        soup = BeautifulSoup(html, 'html.parser')
+        ls = soup.find('ul', attrs={'class':'llista_videos'})
+        page_interventions = []
+        for intervention_el in ls.findChildren('li', recursive=False):
+            if intervention_el.find_all('p'): 
+                intervention = self.get_act_intervention(intervention_el)
+                self.interventions.append(intervention)
+            else:
+                msg = 'no paragraphs found in %s'%intervention_el
+                print('WARNING:', msg)
+        return page_interventions
 
     def meta_to_dict(self):
         return {}
