@@ -139,51 +139,71 @@ class Session(object):
         soup = BeautifulSoup(html, 'html.parser')
         ls = soup.find('ul', attrs={'class':'llista_videos'})
         self.interventions = []
-        for intervention_el in ls.find_all('li'):
-            code_date = None
-            for element in intervention_el.find_all('p'):
-                formatted_date = re.search('(\d\d)/(\d\d)/(\d{4})', element.text)
-                if formatted_date:
-                    #TODO use groups to set up a datetime variable?
-                    # date is in ple_code format
-                    if code_date:
-                        msg = 'date had already been extracted from intervention.\n'
-                        print('WARNING:', msg, element.text)
-                    code_date = '_'.join(formatted_date.groups()[::-1])
-                else:
-                    if 'Intervinent' in element.text:
-                        intervinent = element.text.split('Intervinent:')[1].strip()
-                        intervinent_links = [links.get('href')\
-                                             for links in element.find_all('a')]
-                    elif 'Diari' in element.text:
-                        diari_url = element.find('a').get('href')
-                        diari_code, page = os.path.basename(diari_url).split('.')
-                        m = re.search('(?<=page\=)\d+',page)
-                        if m:
-                            page_reference = m.group()
-                        else:
-                            msg = 'page not found in %s'%page
-                            raise ValueError(msg)
-                    elif 'Durada' in element.text:
-                        #TODO start end time and the duration
-                        pass
-                    elif 'titol_pod' in element.attrs['class']:
-                        title = element.text
-                        link_parent = element.find('a')
-                        if link_parent:
-                            title_url = link_parent.get('href')
+        for intervention_el in ls.findChildren('li', recursive=False):
+            if intervention_el.find_all('p'): 
+                intervention = self.get_act_intervention(intervention_el)
+                self.interventions.append(intervention)
+            else:
+                msg = 'no paragraphs found in %s'%intervention_el
+                print('WARNING:', msg)
 
-            if diari_code and code_date:
-                ple_code = '_'.join([code_date, diari_code])
-                print(ple_code)
-                #TODO assert ple_code is the same as session ple_code
-            intervention = {'intervinent':intervinent,
-                            'intervinen_urls':intervinent_links,
-                            'ple_code':ple_code,
-                            'page_reference':page_reference,
-                            'title':title,
-                            'title_url':title_url}
-            self.interventions.append(intervention)
+    @staticmethod 
+    def get_act_intervention(intervention_el):
+        '''Extracts intervention metadata
+           not all interventions have diari references or title urls
+        '''
+        code_date = None
+        diari_code = None
+        ple_code = None
+        page_reference = None
+        for element in intervention_el.find_all('p'):
+            formatted_date = re.search('(\d\d)/(\d\d)/(\d{4})', element.text)
+            if formatted_date:
+                #TODO use groups to set up a datetime variable?
+                # date is in ple_code format
+                if code_date:
+                    msg = 'date had already been extracted from intervention.\n'
+                    print('WARNING:', msg, element.text)
+                code_date = '_'.join(formatted_date.groups()[::-1])
+            else:
+                if 'Intervinent' in element.text:
+                    intervinent = element.text.split('Intervinent:')[1].strip()
+                    intervinent_links = [links.get('href')\
+                                         for links in element.find_all('a')]
+                elif 'Diari' in element.text:
+                    diari_url = element.find('a').get('href')
+                    diari_code, page = os.path.basename(diari_url).split('.')
+                    m = re.search('(?<=page\=)\d+',page)
+                    if m:
+                        page_reference = m.group()
+                    else:
+                        msg = 'page not found in %s'%page
+                        raise ValueError(msg)
+                elif 'Durada' in element.text:
+                    #TODO start end time and the duration
+                    pass
+                elif 'titol_pod' in element.attrs['class']:
+                    title = element.text
+                    link_parent = element.find('a')
+                    if link_parent:
+                        title_url = link_parent.get('href')
+                    else:
+                        title_url = None
+                elif 'Javascript' in element.text:
+                    pass
+                else:
+                    msg = 'unknown element %s'%element.text
+                    print(msg)
+        if diari_code and code_date:
+            ple_code = '_'.join([code_date, diari_code])
+            #TODO assert ple_code is the same as session ple_code
+        intervention = {'intervinent':intervinent,
+                        'intervinen_urls':intervinent_links,
+                        'ple_code':ple_code,
+                        'page_reference':page_reference,
+                        'title':title,
+                        'title_url':title_url}
+        return intervention
 
     def get_interventions(self):
         self.interventions = None
