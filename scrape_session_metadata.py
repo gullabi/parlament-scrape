@@ -70,23 +70,20 @@ def get_session_meta(session, db):
         print(session)
         raise TypeError()
 
-    if current_session.ple_code:
-        if db.backend.find_one({'_id': current_session.ple_code}):
-            msg = '%s already in db. skipping'%current_session.ple_code
-            print(msg)
-            #logging.info(msg)
-        else:
-            current_session.get_interventions()
-            db.insert(current_session.ple_code,
-                      current_session.meta_to_dict())
-            msg = '%s with %i interventions inserted to db'\
-                 %(current_session.ple_code, current_session.no_interventions)
-            print(msg)
+    if db.get(current_session.url):
+        msg = '%s - %s already in db. skipping'%(current_session.ple_code,
+                                                 current_session.name)
+        print(msg)
+        #logging.info(msg)
     else:
-        msg = 'no ple_code found for %s'%str(current_session)
-        raise ValueError(msg)
-
-
+        current_session.get_interventions()
+        db.insert(current_session.url,
+                  current_session.meta_to_dict())
+        msg = '%s - %s with %i interventions inserted to db'\
+             %(current_session.ple_code,
+               current_session.name,
+               current_session.no_interventions)
+        print(msg)
 
 if __name__ == "__main__":
     main()

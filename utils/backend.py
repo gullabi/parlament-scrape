@@ -1,5 +1,7 @@
 from pymongo import MongoClient
 
+import hashlib
+
 class PleDB(object):
     def __init__(self, task_name='v1'):
         self.db_name = 'plens'
@@ -16,12 +18,26 @@ class PleDB(object):
             print(key,': ',value)
             raise ValueError('session does not have a key or empty')
         # check if exists
-        ref = self.backend.find_one({'_id': key})
+        h = hashlib.md5(key.encode('utf8')).hexdigest()
+        ref = self.backend.find_one({'_id': h})
         if not ref:
-            self.backend.insert({'_id': key,
-                                 'date': value['date'],
-                                 'name': value['name'],
-                                 'interventions': value['interventions']})
+            value['_id'] = h
+            self.backend.insert(value)
         else:
             msg = '%s is already in db. skipping'%key
             logging.info(msg)
+
+    def get(self, element):
+        if type(element) == str:
+            key = element
+        elif type(element) == dict:
+            if not element.get('url'):
+                msg = 'queried element does not have a key'\
+                      ' i.e. a url element'
+                raise ValueError(msg)
+            key = element['url']
+        h = hashlib.md5(key.encode('utf8')).hexdigest()
+        ref = self.backend.find_one({'_id':h})
+        if not ref:
+            return None
+        return ref

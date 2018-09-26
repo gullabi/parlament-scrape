@@ -69,7 +69,12 @@ class Session(object):
                         raise ValueError(msg)
                 elif 'Durada' in element.text:
                     #TODO start end time and the duration
-                    pass
+                    m = re.search('De (.+) a (.+) - Durada', element.text)
+                    if not m:
+                        msg = 'Problem with start end information string %s'\
+                                                                  %element.text
+                        raise ValueError(msg)
+                    start, end = m.groups()
                 elif 'titol_pod' in element.attrs['class']:
                     title = [element.text]
                     title_url = []
@@ -101,13 +106,18 @@ class Session(object):
                     print(msg)
         if diari_code and code_date:
             ple_code = '_'.join([code_date, diari_code])
-            #TODO assert ple_code is the same as session ple_code
+        #Extract audio url from intervention div element
+        audio_url = intervention_el.find('li', attrs={'class':'audio'})\
+                                   .find('a').get('href')
         intervention = {'intervinent':intervinent,
                         'intervinen_urls':intervinent_links,
                         'ple_code':ple_code,
                         'page_reference':page_reference,
                         'title':title,
-                        'title_url':title_url}
+                        'title_url':title_url,
+                        'start':start,
+                        'end':end,
+                        'audio_url':audio_url}
         return intervention
 
     def get_interventions(self):
@@ -120,7 +130,7 @@ class Session(object):
             self.interventions += self.get_act_interventions(url)
 
     def get_act_interventions(self, url):
-        html = request_html(urljoin(base, url))
+        html = request_html(urljoin(self.base_url, url))
         soup = BeautifulSoup(html, 'html.parser')
         ls = soup.find('ul', attrs={'class':'llista_videos'})
         page_interventions = []
@@ -132,3 +142,15 @@ class Session(object):
                 msg = 'no paragraphs found in %s'%intervention_el
                 print('WARNING:', msg)
         return page_interventions
+
+    def meta_to_dict(self):
+        session = {'name': self.name,
+                   'date': self.date,
+                   'url': self.url,
+                   'duration': self.duration,
+                   'interventions': self.interventions}
+        return session
+
+    @property
+    def no_interventions(self):
+        return len(self.interventions)
