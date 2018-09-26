@@ -1,11 +1,8 @@
-import os
-import sys
-import re
-
-from pymongo import MongoClient
-from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from bs4 import BeautifulSoup
 
+from models import Session
+from backend import PleDB
 from scrape_sessions import request_html
 
 base = 'https://www.parlament.cat/'
@@ -55,6 +52,7 @@ def parse_for_sessions(soup):
     for element in llista.find_all('h2'):
         session = {}
         div = element.find_parent()
+        session['base_url'] = base
         session['url'] = div.find('a').get('href')
         session['name'] = div.find('a').text
         for p in div.find_all('p'):
@@ -69,9 +67,8 @@ def get_session_meta(session, db):
     try:
         current_session = Session(**session)
     except TypeError as e:
-        print(e)
         print(session)
-        sys.exit()
+        raise TypeError()
 
     if current_session.ple_code:
         if db.backend.find_one({'_id': current_session.ple_code}):
@@ -89,170 +86,7 @@ def get_session_meta(session, db):
         msg = 'no ple_code found for %s'%str(current_session)
         raise ValueError(msg)
 
-class PleDB(object):
-    def __init__(self, task_name='v1'):
-        self.db_name = 'plens'
-        self.collection_name = task_name
 
-    def connect(self):
-        client = MongoClient("localhost", 27017)
-        db = client[self.db_name]
-        self.backend = db[self.collection_name]
-
-    def insert(self, key, value):
-        # element should be a dictionary with elements meta and time
-        if not key or not value:
-            print(key,': ',value)
-            raise ValueError('session does not have a key or empty')
-        # check if exists
-        ref = self.backend.find_one({'_id': key})
-        if not ref:
-            self.backend.insert({'_id': key,
-                                 'date': value['date'],
-                                 'name': value['name'],
-                                 'interventions': value['interventions']})
-        else:
-            msg = '%s is already in db. skipping'%key
-            logging.info(msg)
-
-class Session(object):
-    def __init__(self, url, date, name, duration):
-        self.__dict__.update(locals())
-        self.get_ple_code()
-        self.interventions = []
-
-    def __str__(self):
-        return str(self.__dict__)
-
-    def get_ple_code(self):
-        '''Extracts the ple_code by scraping only the first
-           intervention
-        '''
-        self.get_act_links()
-        html = request_html(urljoin(base, self.act_urls[-1]))
-        soup = BeautifulSoup(html, 'html.parser')
-        ls = soup.find('ul', attrs={'class':'llista_videos'})
-        for intervention_el in ls.findChildren('li', recursive=False):
-            intervention = self.get_act_intervention(intervention_el)
-            if intervention['ple_code']:
-                self.ple_code = intervention['ple_code']
-                break
-
-    def get_act_links(self):
-        html = request_html(urljoin(base, self.url))
-        soup = BeautifulSoup(html, 'html.parser')
-        act_list = soup.find('ul', attrs={'class':'pagina_llistat'})
-        self.act_urls = [element.get('href') for element in act_list.find_all('a')]
-
-    @staticmethod 
-    def get_act_intervention(intervention_el):
-        '''Extracts intervention metadata
-           not all interventions have diari references or title urls
-        '''
-        code_date = None
-        diari_code = None
-        ple_code = None
-        page_reference = None
-        for element in intervention_el.find_all('p'):
-            formatted_date = re.search('(\d\d)/(\d\d)/(\d{4})', element.text)
-            if formatted_date:
-                #TODO use groups to set up a datetime variable?
-                # date is in ple_code format
-                if code_date:
-                    msg = 'date had already been extracted from intervention.\n'
-                    print('WARNING:', msg, element.text)
-                code_date = '_'.join(formatted_date.groups()[::-1])
-            else:
-                if 'Intervinent' in element.text:
-                    intervinent = element.text.split('Intervinent:')[1].strip()
-                    intervinent_links = [links.get('href')\
-                                         for links in element.find_all('a')]
-                elif 'Diari' in element.text:
-                    diari_url = element.find('a').get('href')
-                    diari_code, page = os.path.basename(diari_url).split('.')
-                    m = re.search('(?<=page\=)\d+',page)
-                    if m:
-                        page_reference = m.group()
-                    else:
-                        msg = 'page not found in %s'%page
-                        raise ValueError(msg)
-                elif 'Durada' in element.text:
-                    #TODO start end time and the duration
-                    pass
-                elif 'titol_pod' in element.attrs['class']:
-                    title = [element.text]
-                    title_url = []
-                    link_parent = element.find('a')
-                    if link_parent:
-                        title_url.append(link_parent.get('href'))
-                elif 'Javascript' in element.text:
-                    pass
-                elif 'mes_videos' in element.attrs['class']:
-                    if 'titol_pod' not in element.find('a').get('class'):
-                        msg = 'unknown element %s'%element
-                        print(msg)
-                    else:
-                        pod_id = element.find('a').get('id')[3:]
-                        title = []
-                        title_url = []
-                        for title_el in element.findParent()\
-                                               .find('div',\
-                                                     attrs={'id':pod_id})\
-                                               .find_all('li'):
-                            title.append(title_el.text)
-                            link_parent = title_el.find('a')
-                            if link_parent:
-                                title_url.append(link_parent.get('href'))
-                            else:
-                                title_url.append(None)
-                else:
-                    msg = 'unknown element %s'%element.text
-                    print(msg)
-        if diari_code and code_date:
-            ple_code = '_'.join([code_date, diari_code])
-            #TODO assert ple_code is the same as session ple_code
-        intervention = {'intervinent':intervinent,
-                        'intervinen_urls':intervinent_links,
-                        'ple_code':ple_code,
-                        'page_reference':page_reference,
-                        'title':title,
-                        'title_url':title_url}
-        return intervention
-
-    def get_interventions(self):
-        if not self.act_urls:
-            self.get_act_links()
-        if self.interventions:
-            msg = 'session already has interventions'
-            print('WARNING:', msg)
-        for url in self.act_urls[:1]:
-            self.interventions += self.get_act_interventions(url)
-
-    def get_act_interventions(self, url):
-        html = request_html(urljoin(base, url))
-        soup = BeautifulSoup(html, 'html.parser')
-        ls = soup.find('ul', attrs={'class':'llista_videos'})
-        page_interventions = []
-        for intervention_el in ls.findChildren('li', recursive=False):
-            if intervention_el.find_all('p'): 
-                intervention = self.get_act_intervention(intervention_el)
-                self.interventions.append(intervention)
-            else:
-                msg = 'no paragraphs found in %s'%intervention_el
-                print('WARNING:', msg)
-        return page_interventions
-
-    def meta_to_dict(self):
-        session = {'name': self.name,
-                   'date': self.date,
-                   'url': self.url,
-                   'duration': self.duration,
-                   'interventions': self.interventions}
-        return session
-
-    @property
-    def no_interventions(self):
-        return len(self.interventions)
 
 if __name__ == "__main__":
     main()
