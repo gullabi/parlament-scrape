@@ -1,9 +1,9 @@
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
-from models import Session
-from backend import PleDB
-from scrape_sessions import request_html
+from utils.models import Session
+from utils.backend import PleDB
+from scripts.scrape_sessions import request_html
 
 base = 'https://www.parlament.cat/'
 sessions_meta_pages = urljoin(base,

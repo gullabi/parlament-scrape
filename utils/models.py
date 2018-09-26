@@ -1,9 +1,9 @@
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-from scrape_sessions import request_html
-
 import re
 import os
+
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+from scripts.scrape_sessions import request_html
 
 class Session(object):
     def __init__(self, base_url, url, date, name, duration):
