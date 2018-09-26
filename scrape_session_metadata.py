@@ -83,7 +83,7 @@ def get_session_meta(session, db):
             db.insert(current_session.ple_code,
                       current_session.meta_to_dict())
             msg = '%s with %i interventions inserted to db'\
-                 %(current_session.ple_code, current_sessions.no_interventions)
+                 %(current_session.ple_code, current_session.no_interventions)
             print(msg)
     else:
         msg = 'no ple_code found for %s'%str(current_session)
@@ -105,7 +105,7 @@ class PleDB(object):
             print(key,': ',value)
             raise ValueError('session does not have a key or empty')
         # check if exists
-        ref = self.cache.find_one({'_id': key})
+        ref = self.backend.find_one({'_id': key})
         if not ref:
             self.backend.insert({'_id': key,
                                  'date': value['date'],
@@ -180,14 +180,31 @@ class Session(object):
                     #TODO start end time and the duration
                     pass
                 elif 'titol_pod' in element.attrs['class']:
-                    title = element.text
+                    title = [element.text]
+                    title_url = []
                     link_parent = element.find('a')
                     if link_parent:
-                        title_url = link_parent.get('href')
-                    else:
-                        title_url = None
+                        title_url.append(link_parent.get('href'))
                 elif 'Javascript' in element.text:
                     pass
+                elif 'mes_videos' in element.attrs['class']:
+                    if 'titol_pod' not in element.find('a').get('class'):
+                        msg = 'unknown element %s'%element
+                        print(msg)
+                    else:
+                        pod_id = element.find('a').get('id')[3:]
+                        title = []
+                        title_url = []
+                        for title_el in element.findParent()\
+                                               .find('div',\
+                                                     attrs={'id':pod_id})\
+                                               .find_all('li'):
+                            title.append(title_el.text)
+                            link_parent = title_el.find('a')
+                            if link_parent:
+                                title_url.append(link_parent.get('href'))
+                            else:
+                                title_url.append(None)
                 else:
                     msg = 'unknown element %s'%element.text
                     print(msg)
@@ -226,7 +243,16 @@ class Session(object):
         return page_interventions
 
     def meta_to_dict(self):
-        return {}
+        session = {'name': self.name,
+                   'date': self.date,
+                   'url': self.url,
+                   'duration': self.duration,
+                   'interventions': self.interventions}
+        return session
+
+    @property
+    def no_interventions(self):
+        return len(self.interventions)
 
 if __name__ == "__main__":
     main()
