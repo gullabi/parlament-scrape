@@ -7,7 +7,7 @@ import re
 import os
 
 def main():
-    directory = '../../parlament-scrape/xmls'
+    directory = '../../../parlament-scrape/xmls'
     out_path = 'yamls'
     #out_path = 'xml_tests02'
     for filename in os.listdir(directory):

@@ -32,12 +32,12 @@ def get_session_list():
 
 def get_session_pages():
     no_pages = get_page_no()
-    return [urljoin(sessions_meta_pages,'?p_cp20=',page_no+1) \
+    return [urljoin(sessions_meta_pages,'?p_cp20=%i'%(page_no+1)) \
             for page_no in range(no_pages)] 
 
 def get_page_no():
     #TODO
-    return 1
+    return 15
 
 def extract_sessions(url):
     html = request_html(url)

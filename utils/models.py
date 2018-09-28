@@ -107,8 +107,10 @@ class Session(object):
         if diari_code and code_date:
             ple_code = '_'.join([code_date, diari_code])
         #Extract audio url from intervention div element
-        audio_url = intervention_el.find('li', attrs={'class':'audio'})\
-                                   .find('a').get('href')
+        media_el = intervention_el.find('li', attrs={'class':'audio'})
+        if not media_el:
+            media_el = intervention_el.find('li', attrs={'class':'video'})
+        media_url = media_el.find('a').get('href')
         intervention = {'intervinent':intervinent,
                         'intervinen_urls':intervinent_links,
                         'ple_code':ple_code,
@@ -117,7 +119,7 @@ class Session(object):
                         'title_url':title_url,
                         'start':start,
                         'end':end,
-                        'audio_url':audio_url}
+                        'media_url':media_url}
         return intervention
 
     def get_interventions(self):
