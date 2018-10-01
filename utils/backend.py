@@ -41,3 +41,6 @@ class PleDB(object):
         if not ref:
             return None
         return ref
+
+    def get_from_code(self, code):
+        return self.backend.find({'ple_code':code})

@@ -1,6 +1,7 @@
 *.pyc
 *.swp
 *.log
+*.ls
 xml_test*
 yamls/
 venv/

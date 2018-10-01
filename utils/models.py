@@ -147,6 +147,7 @@ class Session(object):
 
     def meta_to_dict(self):
         session = {'name': self.name,
+                   'ple_code': self.ple_code,
                    'date': self.date,
                    'url': self.url,
                    'duration': self.duration,
