@@ -44,6 +44,8 @@ class Session(object):
         diari_code = None
         ple_code = None
         page_reference = None
+        intervinents = []
+        intervinent_urls = []
         for element in intervention_el.find_all('p'):
             formatted_date = re.search('(\d\d)/(\d\d)/(\d{4})', element.text)
             if formatted_date:
@@ -58,6 +60,8 @@ class Session(object):
                     intervinent = element.text.split('Intervinent:')[1].strip()
                     intervinent_links = [links.get('href')\
                                          for links in element.find_all('a')]
+                    intervinents.append(intervinent)
+                    intervinent_urls.append(intervinent_links)
                 elif 'Diari' in element.text:
                     diari_url = element.find('a').get('href')
                     diari_code, page = os.path.basename(diari_url).split('.')
@@ -111,8 +115,8 @@ class Session(object):
         if not media_el:
             media_el = intervention_el.find('li', attrs={'class':'video'})
         media_url = media_el.find('a').get('href')
-        intervention = {'intervinent':intervinent,
-                        'intervinen_urls':intervinent_links,
+        intervention = {'intervinent':intervinents,
+                        'intervinen_urls':intervinent_urls,
                         'ple_code':ple_code,
                         'page_reference':page_reference,
                         'title':title,

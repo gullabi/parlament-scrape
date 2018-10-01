@@ -10,7 +10,7 @@ sessions_meta_pages = urljoin(base,
                              '/web/canal-parlament/activitat/plens/index.html')
 
 def main():
-    db = PleDB(task_name='test')
+    db = PleDB(task_name='test02')
     db.connect()
     get_all_session_metadata(db)
 
@@ -37,7 +37,7 @@ def get_session_pages():
 
 def get_page_no():
     #TODO
-    return 15
+    return 2
 
 def extract_sessions(url):
     html = request_html(url)
