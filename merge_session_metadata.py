@@ -12,7 +12,7 @@ def main():
     compare_intervinents(meta, texts)
 
 def get_session_metadata(ple_code):
-    db = PleDB(task_name='test')
+    db = PleDB(task_name='test02')
     db.connect()
     results = []
     for r in db.get_from_code(ple_code):
@@ -28,10 +28,13 @@ def compare_intervinents(meta, text):
     meta_speaker = []
     for m in meta:
         for intervention in m['interventions']:
-            sp = intervention['intervinent'].split('|')[0].strip().replace('\xa0','')
-            if 'President del Parlament' in sp:
-                sp = 'El president'
-            meta_inter.append(sp)
+            ints = []
+            for intervinent in intervention['intervinent']:
+                sp = intervinent.split('|')[0].strip().replace('\xa0','')
+                if 'President del Parlament' in sp:
+                    sp = 'El president'
+                ints.append(sp)
+            meta_inter.append(ints)
     for dic in text:
         speaker = list(dic.keys())[0]
         text = dic[speaker]
@@ -50,13 +53,13 @@ def compare_intervinents(meta, text):
     '''
     pause = 'El president'
     pdf_block = get_blocks(meta_speaker, 'El president')
-    db_block = get_blocks(meta_inter, 'El president')
+    db_block = get_blocks(post_process_db(meta_inter), 'El president')
     with open('pdf_block.ls','w') as out:
         for m in pdf_block:
-            out.write('%s\n'%m[2])
+            out.write('%s\n'%str(m))
     with open('db_block.ls','w') as out:
         for i, m in enumerate(db_block):
-            out.write('%s\n'%m[2])
+            out.write('%s\n'%str(m))
 
 def get_blocks(ls, pause):
     uniques = []
@@ -82,13 +85,35 @@ def get_blocks(ls, pause):
                         search_beginning = False
                         #print('start',start)
                 else:
-                    if p == u:
-                        end = i
+                    if p != u and p != pause:
+                        end = i-1
                         #print('end',end)
                         break
         search_beginning = True
+        if end < start:
+            end = start
         blocks.append((start,end,u))
     return blocks
+
+def post_process_db(lines):
+    processed = []
+    for line in lines:
+        if len(line) == 1:
+            processed.append(line[0])
+        else:
+            index = -1
+            try:
+                index = line.index('El president')
+            except:
+                print('not in list')
+            if index != -1:
+                line.pop(index)
+            if len(line) > 2:
+                print('after post-process there are still multiple intervinents')
+                print(line)
+            else:
+                processed.append(line[0])
+    return processed
 
 if __name__ == "__main__":
     main()

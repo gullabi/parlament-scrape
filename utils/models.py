@@ -132,7 +132,7 @@ class Session(object):
         if self.interventions:
             msg = 'session already has interventions'
             print('WARNING:', msg)
-        for url in self.act_urls[:1]:
+        for url in self.act_urls:
             self.interventions += self.get_act_interventions(url)
 
     def get_act_interventions(self, url):
