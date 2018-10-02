@@ -223,7 +223,6 @@ class parseXML(object):
         self.merge_speakers()
         #print(self.filename, self.speakers)
         self.create_speaker_tree()
-        
 
     def get_speaker_properties(self):
         if not self.filtered_lines:
@@ -305,10 +304,14 @@ class parseXML(object):
                     self.speaker_tree.append(speaker_discourse)
                 current_speaker = line['text'].strip()
                 speaker_discourse = {current_speaker:''}
+                print(current_speaker)
             else:
                 if current_speaker:
                     # skips the first pages
                     speaker_discourse[current_speaker] += line['text']
+        if speaker_discourse:
+            # the last intervention needs to be added
+            self.speaker_tree.append(speaker_discourse)
 
     def output_lines(self, out_path=None, debug=False):
         if out_path:
