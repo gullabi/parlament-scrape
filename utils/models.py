@@ -18,6 +18,7 @@ class Session(object):
         '''Extracts the ple_code by scraping only the first
            intervention
         '''
+        self.ple_code = None
         self.get_act_links()
         last_act = urljoin(self.base_url, self.act_urls[-1])
         html = request_html(last_act)
