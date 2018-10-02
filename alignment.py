@@ -7,15 +7,17 @@ def main():
     ple_code = '2018_03_01_243878'
     yaml_path = 'yamls'
     task_name = 'v1'
-
-    align = Alignment(ple_code=ple_code, task_name=task_name)
+    db = PleDB(task_name=task_name)
+    db.connect()
+    for session in db.backend.find():
+        if session['ple_code']:
+            print(session['ple_code'])
+            align = Alignment(ple_code=session['ple_code'], db=db)
+            align.block_align()
 
 class Alignment(object):
-    def __init__(self, ple_code=None, yaml_path='yamls', task_name=None):
-        if not task_name:
-            msg = 'task_name should be given'
-            raise ValueError(msg)
-        self.db = PleDB(task_name=task_name)
+    def __init__(self, ple_code=None, yaml_path='yamls', db=None):
+        self.db = db
         self.db.connect()
 
         self.ple_code = ple_code
@@ -70,6 +72,14 @@ class Alignment(object):
                   'ple_code:%s, first: %s, last:%s, most:%s'\
                   %(self.ple_code, first_meta_int, last_meta_int, most_meta_int)
             print(msg)
+            if first_meta_int == most_meta_int:
+                print('using first and the most')
+                self.metadata_mesa = first_meta_int
+            elif last_meta_int == first_meta_int:
+                print('using first and the last')
+                self.metadata_mesa = last_meta_int
+            else:
+                raise ValueError()
 
         if first_text_int == most_text_int and last_text_int == most_text_int:
             self.text_mesa = first_text_int
@@ -78,6 +88,14 @@ class Alignment(object):
                   'ple_code:%s, first: %s, last:%s, most:%s'\
                   %(self.ple_code, first_text_int, last_text_int, most_text_int)
             print(msg)
+            if first_text_int == most_text_int:
+                print('using first and the most')
+                self.text_mesa = first_text_int
+            elif first_text_int == last_text_int:
+                print('using first and the last')
+                self.text_mesa = last_text_int
+            else:
+                raise ValueError()
 
         self.mesa = 'mesa'
 
@@ -126,9 +144,11 @@ class Alignment(object):
         for d in self.text:
             speaker = list(d.keys())[0]
             talk = d[speaker]
-            if talk:
+            if talk and 'ORDRE' not in speaker:
                 if speaker == self.text_mesa:
                     speaker = self.mesa
+                if 'ORDRE' in speaker:
+                    print('****')
                 self.text_intervinents.append(speaker)
 
     @staticmethod 
@@ -165,3 +185,6 @@ class Alignment(object):
                 end = start
             blocks.append((start,end,u))
         return blocks
+
+if __name__ == "__main__":
+    main()

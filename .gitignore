@@ -2,6 +2,7 @@
 *.swp
 *.log
 *.ls
+*.yaml
 xml_test*
 yamls/
 venv/
