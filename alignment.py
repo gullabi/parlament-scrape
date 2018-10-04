@@ -2,18 +2,38 @@ from utils.backend import PleDB
 from collections import Counter
 import yaml
 import os
+import sys
+import itertools
 
-def main():
-    ple_code = '2018_03_01_243878'
+def main(ple_code):
     yaml_path = 'yamls'
     task_name = 'v1'
     db = PleDB(task_name=task_name)
     db.connect()
+    if ple_code == 'all':
+        get_all(db)
+    else:
+        get_one(db, ple_code)
+
+def get_all(db):
     for session in db.backend.find():
         if session['ple_code']:
+            if 'sessió constitutiva' in session['name']\
+                or 'constitució' in session['name'].lower():
+                msg = 'INFO: skipping sessió constitutiva'
+                continue
             print(session['ple_code'])
-            align = Alignment(ple_code=session['ple_code'], db=db)
-            align.block_align()
+            yaml_file = os.path.join('yamls',session['ple_code']+'_speaker.yaml')
+            if os.path.isfile(yaml_file):
+                align = Alignment(ple_code=session['ple_code'], db=db)
+                align.block_align()
+            else:
+                msg = 'WARNING: %s does not exist, skipping'%yaml_file
+                print(msg)
+
+def get_one(db, ple_code):
+    align = Alignment(ple_code=ple_code, db=db)
+    align.block_align()
 
 class Alignment(object):
     def __init__(self, ple_code=None, yaml_path='yamls', db=None):
@@ -45,6 +65,10 @@ class Alignment(object):
             msg = 'WARNING: alignment blocks are not of the same size. %i vs %i'\
                   %(len(self.metadata_blocks),len(self.text_blocks))
             print(msg)
+            '''
+            for compare in itertools.zip_longest(self.metadata_blocks, self.text_blocks):
+                print(compare)
+            '''
 
     def get_mesa(self):
         all_metadata_intervinents = []
@@ -59,7 +83,7 @@ class Alignment(object):
         for t in self.text:
             speaker = list(t.keys())[0]
             text = t[speaker]
-            if text:
+            if text and 'ORDRE' not in speaker:
                 all_text_intervinents.append(speaker)
         first_text_int = all_text_intervinents[0]
         last_text_int = all_text_intervinents[-1]
@@ -69,7 +93,7 @@ class Alignment(object):
             self.metadata_mesa = first_meta_int
         else:
             msg = 'WARNING: mesa person not found.\n'\
-                  'ple_code:%s, first: %s, last:%s, most:%s'\
+                  'ple_code:%s, first:%s, last:%s, most:%s'\
                   %(self.ple_code, first_meta_int, last_meta_int, most_meta_int)
             print(msg)
             if first_meta_int == most_meta_int:
@@ -78,24 +102,34 @@ class Alignment(object):
             elif last_meta_int == first_meta_int:
                 print('using first and the last')
                 self.metadata_mesa = last_meta_int
+            elif last_meta_int == most_meta_int:
+                print('using most and the last')
+                self.metadata_mesa = last_meta_int
             else:
-                raise ValueError()
+                msg = 'WARNING: using the most frequent'
+                print(msg)
+                self.metadata_mesa = most_meta_int
 
         if first_text_int == most_text_int and last_text_int == most_text_int:
             self.text_mesa = first_text_int
         else:
             msg = 'WARNING: mesa person not found.\n'\
-                  'ple_code:%s, first: %s, last:%s, most:%s'\
+                  'ple_code:%s, first:%s, last:%s, most:%s'\
                   %(self.ple_code, first_text_int, last_text_int, most_text_int)
             print(msg)
             if first_text_int == most_text_int:
-                print('using first and the most')
+                print('using the first and the most')
                 self.text_mesa = first_text_int
             elif first_text_int == last_text_int:
-                print('using first and the last')
+                print('using the first and the last')
+                self.text_mesa = last_text_int
+            elif most_text_int == last_text_int:
+                print('using the most and the last')
                 self.text_mesa = last_text_int
             else:
-                raise ValueError()
+                msg = 'WARNING: using the most frequent'
+                print(msg)
+                self.text_mesa = most_text_int
 
         self.mesa = 'mesa'
 
@@ -147,8 +181,6 @@ class Alignment(object):
             if talk and 'ORDRE' not in speaker:
                 if speaker == self.text_mesa:
                     speaker = self.mesa
-                if 'ORDRE' in speaker:
-                    print('****')
                 self.text_intervinents.append(speaker)
 
     @staticmethod 
@@ -187,4 +219,5 @@ class Alignment(object):
         return blocks
 
 if __name__ == "__main__":
-    main()
+    ple_code = sys.argv[1]
+    main(ple_code)
