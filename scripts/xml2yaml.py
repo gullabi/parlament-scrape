@@ -2,6 +2,8 @@ from lxml import etree
 from html import unescape
 from math import isclose
 from collections import Counter
+from datetime import datetime
+from copy import deepcopy
 import yaml
 import re
 import os
@@ -87,6 +89,9 @@ class parseXML(object):
             found = self.detect_column_size(lines,
                                             fraction_of_lefts=fraction)
             fraction += 0.025
+            if fraction > 1:
+                msg = 'could not find the column size'
+                raise ValueError(msg)
 
     def detect_column_size(self, lines, fraction_of_lefts=0.75):
         lefts = [float(t['left']) for t in lines]
@@ -112,6 +117,16 @@ class parseXML(object):
         print('INFO: %i column(s) detected with the content cols'\
               %self.column_size,
                self.content_columns)
+        '''
+        column_change_date = datetime(2015,10,25)
+        ple_code = [int(d) for d in os.path.basename(\
+                                                 self.filename).split('_')[:3]]
+        ple_date = datetime(ple_code[0],ple_code[1],ple_code[2])
+        if ple_date < column_change_date and self.column_size == 1:
+            msg = 'ple date too early to have only one column'
+            print(msg)
+            return False
+        '''
         return True
 
     def get_text_font(self, lines):
@@ -224,8 +239,9 @@ class parseXML(object):
 
     def get_speakers(self):
         self.get_speaker_properties()
-        self.create_speaker_tree()
         self.merge_speakers()
+        self.create_speaker_tree()
+        #self.merge_speakers()
 
     def get_speaker_properties(self):
         if not self.filtered_lines:
@@ -239,16 +255,16 @@ class parseXML(object):
                                        self.text_font,
                                        font_counter[0][0]))
         for font, count in font_counter[1:]:
-            speaker_vs_height = {line['text'].strip().lower():line['height']\
+            speaker_vs_height = {line['text'].strip():line['height']\
                             for line in self.filtered_lines\
                             if line['font'] == font}
             # dangerous: if key is not unique it will be overwritten
             for speaker in set(speaker_vs_height):
-                if speaker.lower().startswith('el president') or\
-                   speaker.lower().startswith('la presidenta') or\
-                   speaker.lower().startswith('la vicepresidenta') or\
-                   speaker.lower().startswith('el vicepresident') or\
-                   speaker.lower().startswith('<b>'):
+                if speaker.startswith('El president') or\
+                   speaker.startswith('La presidenta') or\
+                   speaker.startswith('La vicepresidenta') or\
+                   speaker.startswith('El vicepresident') or\
+                   speaker.startswith('<b>'):
                     key = speaker
                     self.speaker_font = font
                     self.speaker_height = speaker_vs_height.get(key)
@@ -264,10 +280,6 @@ class parseXML(object):
                              %(self.filename,str(font_counter)))
 
     def create_speaker_tree(self):
-        self.speakers = set({line['text'].strip():True\
-                             for line in self.filtered_lines\
-                             if line['font'] == self.speaker_font and\
-                                line['height'] == self.speaker_height})
         if not self.speakers:
             raise ValueError('ERROR: Cannot create speaker trees'\
                              ' speakers are not parsed')
@@ -292,6 +304,10 @@ class parseXML(object):
             self.speaker_tree.append(speaker_discourse)
 
     def merge_speakers(self):
+        self.speakers = set({line['text'].strip():True\
+                             for line in self.filtered_lines\
+                             if line['font'] == self.speaker_font and\
+                                line['height'] == self.speaker_height})
         to_be_merged = []
         for i, line in enumerate(self.filtered_lines):
             if i == 0:
@@ -309,28 +325,18 @@ class parseXML(object):
                            float(prior_line['height']),\
                            float(line['top']),abs_tol=2):
                     print('INFO: found speakers to merge',prior_sp,current_sp)
-                    if current_sp in self.speakers:
-                        self.speakers.remove(current_sp)
-                    self.speakers.remove(prior_sp)
-                    self.speakers.add(prior_line['text']+line['text'])
-                    to_be_merged.append((prior_line['text'],line['text']))
-
-        merge_clean = []
-        for i, st in enumerate(self.speaker_tree):
-            speaker = list(st.keys())[0]
-            text = st[speaker]
-            if speaker == to_be_merged[0][0].strip() and text == '':
-                next_speaker = list(self.speaker_tree[i+1].keys())[0]
-                next_text = self.speaker_tree[i+1][next_speaker]
-                if next_speaker == to_be_merged[0][1].strip():
-                    print('INFO: merging speakers',to_be_merged[0])
-                    self.speaker_tree[i+1] = {''.join(to_be_merged[0]):next_text}
-                    merge_clean.append(i)
-                    to_be_merged.pop(0)
-                    if not to_be_merged:
-                        break
-        for index in merge_clean:
-            self.speaker_tree.pop(index)
+                    to_be_merged.append((i-1,i))
+        if to_be_merged:
+            for first, second in to_be_merged[::-1]:
+                first_text = self.filtered_lines[first]['text']
+                second_text = self.filtered_lines[second]['text']
+                print("INFO: merging speakers %s"%str((first_text,second_text)))
+                self.filtered_lines[first]['text'] += deepcopy(second_text)
+                self.filtered_lines.pop(second)
+        self.speakers = set({line['text'].strip():True\
+                             for line in self.filtered_lines\
+                             if line['font'] == self.speaker_font and\
+                                line['height'] == self.speaker_height})
 
     def output_lines(self, out_path=None, debug=False):
         if out_path:
