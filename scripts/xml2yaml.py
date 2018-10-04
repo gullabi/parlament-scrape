@@ -263,6 +263,34 @@ class parseXML(object):
             raise ValueError('Speaker fonts are not found for %s:\n%s'\
                              %(self.filename,str(font_counter)))
 
+    def create_speaker_tree(self):
+        self.speakers = set({line['text'].strip():True\
+                             for line in self.filtered_lines\
+                             if line['font'] == self.speaker_font and\
+                                line['height'] == self.speaker_height})
+        if not self.speakers:
+            raise ValueError('ERROR: Cannot create speaker trees'\
+                             ' speakers are not parsed')
+        current_speaker = None
+        speaker_discourse = {}
+        for line in self.filtered_lines:
+            if line['text'].strip() in self.speakers:
+                if speaker_discourse:
+                    # append the current discourse to the list
+                    if not list(speaker_discourse.values()):
+                        print('WARNING: no text for speaker',\
+                              current_speaker)
+                    self.speaker_tree.append(speaker_discourse)
+                current_speaker = line['text'].strip()
+                speaker_discourse = {current_speaker:''}
+            else:
+                if current_speaker:
+                    # skips the first pages
+                    speaker_discourse[current_speaker] += line['text']
+        if speaker_discourse:
+            # the last intervention needs to be added
+            self.speaker_tree.append(speaker_discourse)
+
     def merge_speakers(self):
         to_be_merged = []
         for i, line in enumerate(self.filtered_lines):
@@ -303,34 +331,6 @@ class parseXML(object):
                         break
         for index in merge_clean:
             self.speaker_tree.pop(index)
-
-    def create_speaker_tree(self):
-        self.speakers = set({line['text'].strip():True\
-                             for line in self.filtered_lines\
-                             if line['font'] == self.speaker_font and\
-                                line['height'] == self.speaker_height})
-        if not self.speakers:
-            raise ValueError('ERROR: Cannot create speaker trees'\
-                             ' speakers are not parsed')
-        current_speaker = None
-        speaker_discourse = {}
-        for line in self.filtered_lines:
-            if line['text'].strip() in self.speakers:
-                if speaker_discourse:
-                    # append the current discourse to the list
-                    if not list(speaker_discourse.values()):
-                        print('WARNING: no text for speaker',\
-                              current_speaker)
-                    self.speaker_tree.append(speaker_discourse)
-                current_speaker = line['text'].strip()
-                speaker_discourse = {current_speaker:''}
-            else:
-                if current_speaker:
-                    # skips the first pages
-                    speaker_discourse[current_speaker] += line['text']
-        if speaker_discourse:
-            # the last intervention needs to be added
-            self.speaker_tree.append(speaker_discourse)
 
     def output_lines(self, out_path=None, debug=False):
         if out_path:
