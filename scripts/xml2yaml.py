@@ -7,7 +7,7 @@ import re
 import os
 
 def main():
-    directory = '../../../parlament-scrape/xmls'
+    directory = '../../parlament-scrape/xmls'
     out_path = 'yamls'
     #out_path = 'xml_tests02'
     for filename in os.listdir(directory):
@@ -21,7 +21,6 @@ def main():
                 p.output_lines(out_path=out_path)
             else:
                 print('INFO: file exists. skipping...')
-
 
 class parseXML(object):
     def __init__(self, filename):
@@ -131,7 +130,12 @@ class parseXML(object):
                float(line['left']) in self.content_columns:
                 tops.append((line['top'],line['font'],line['text']))
         top_counter = Counter(tops)
-        h_f = [top for top in top_counter.most_common() if top[1]>1]
+        # for very large documents we may end up with false positives for 
+        # headers. In order to scale the probability of a header/footer with
+        # the documents size, min_header is used
+        min_header = max(1,int((len(self.pages))/3)-2)
+        print("INFO: minimum count for header",min_header)
+        h_f = [top for top in top_counter.most_common() if top[1]>=min_header]
         self.header_footer = {}
         if not h_f:
             pass
@@ -220,9 +224,8 @@ class parseXML(object):
 
     def get_speakers(self):
         self.get_speaker_properties()
-        self.merge_speakers()
-        #print(self.filename, self.speakers)
         self.create_speaker_tree()
+        self.merge_speakers()
 
     def get_speaker_properties(self):
         if not self.filtered_lines:
@@ -261,18 +264,14 @@ class parseXML(object):
                              %(self.filename,str(font_counter)))
 
     def merge_speakers(self):
-        speakers = set({line['text'].strip():True\
-                             for line in self.filtered_lines\
-                             if line['font'] == self.speaker_font and\
-                                line['height'] == self.speaker_height})
-        merged_speakers = []
+        to_be_merged = []
         for i, line in enumerate(self.filtered_lines):
             if i == 0:
                 continue
             current_sp = line['text'].strip()
             prior_line = self.filtered_lines[i-1]
             prior_sp = prior_line['text'].strip()
-            if prior_sp in speakers and\
+            if prior_sp in self.speakers and\
                line['text'] != self.text_font:
                 # only merges two consecutive lines when the latter 
                 # line has a font different then the main text
@@ -281,14 +280,35 @@ class parseXML(object):
                 if isclose(float(prior_line['top'])+\
                            float(prior_line['height']),\
                            float(line['top']),abs_tol=2):
-                    print('merging speakers',prior_sp,current_sp)
-                    if current_sp in speakers:
-                        speakers.remove(current_sp)
-                    speakers.remove(prior_sp)
-                    speakers.add(prior_line['text']+line['text'])
-        self.speakers = speakers
+                    print('INFO: found speakers to merge',prior_sp,current_sp)
+                    if current_sp in self.speakers:
+                        self.speakers.remove(current_sp)
+                    self.speakers.remove(prior_sp)
+                    self.speakers.add(prior_line['text']+line['text'])
+                    to_be_merged.append((prior_line['text'],line['text']))
+
+        merge_clean = []
+        for i, st in enumerate(self.speaker_tree):
+            speaker = list(st.keys())[0]
+            text = st[speaker]
+            if speaker == to_be_merged[0][0].strip() and text == '':
+                next_speaker = list(self.speaker_tree[i+1].keys())[0]
+                next_text = self.speaker_tree[i+1][next_speaker]
+                if next_speaker == to_be_merged[0][1].strip():
+                    print('INFO: merging speakers',to_be_merged[0])
+                    self.speaker_tree[i+1] = {''.join(to_be_merged[0]):next_text}
+                    merge_clean.append(i)
+                    to_be_merged.pop(0)
+                    if not to_be_merged:
+                        break
+        for index in merge_clean:
+            self.speaker_tree.pop(index)
 
     def create_speaker_tree(self):
+        self.speakers = set({line['text'].strip():True\
+                             for line in self.filtered_lines\
+                             if line['font'] == self.speaker_font and\
+                                line['height'] == self.speaker_height})
         if not self.speakers:
             raise ValueError('ERROR: Cannot create speaker trees'\
                              ' speakers are not parsed')
@@ -304,7 +324,6 @@ class parseXML(object):
                     self.speaker_tree.append(speaker_discourse)
                 current_speaker = line['text'].strip()
                 speaker_discourse = {current_speaker:''}
-                print(current_speaker)
             else:
                 if current_speaker:
                     # skips the first pages

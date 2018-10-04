@@ -3,6 +3,7 @@
 *.log
 *.ls
 *.yaml
+*.xml
 xml_test*
 yamls/
 venv/
