@@ -150,7 +150,6 @@ class Alignment(object):
                         speaker = self.mesa
                     else:
                         speaker = intervinent.split('|')[0].strip().replace('\xa0',' ')
-                        #print(speaker)
                     ints.append(speaker)
                 metadata_int_structured.append(ints)
         self.metadata_intervinents = self.post_process_db(metadata_int_structured)
@@ -260,7 +259,7 @@ class Alignment(object):
         text_int_set = set(self.text_intervinents)
         metadata_int_set = set(self.metadata_intervinents)
 
-        print('matching', len(text_int_set),len(metadata_int_set))
+        print('matching', len(text_int_set), 'vs', len(metadata_int_set))
         text_int_set, metadata_int_set, matched_tvsm = \
                      self.match_loop(text_int_set, metadata_int_set, 90)
         if text_int_set:
@@ -276,23 +275,29 @@ class Alignment(object):
                         matched_tvsm[t_int] = matched_tvsm[value]
                         text_int_set.remove(t_int)
                         break
-        print(matched_tvsm)
         if text_int_set or metadata_int_set:
+            print(matched_tvsm)
             print('INFO: unmatched', text_int_set,metadata_int_set)
+        else:
+            print('INFO: success! All matched.')
 
     def match_loop(self, text_int_set, metadata_int_set, threshold):
         matched_tvsm = {}
         for t_int in list(text_int_set):
             if metadata_int_set:
                 for m_int in list(metadata_int_set):
-                    if self.match_speaker(t_int, m_int, threshold=threshold):
+                    if self.match_speaker(t_int.lower(),
+                                          m_int.lower(),
+                                          threshold=threshold):
+                        print('%s vs %s'%(t_int,m_int))
                         matched_tvsm[t_int] = m_int
                         metadata_int_set.remove(m_int)
                         text_int_set.remove(t_int)
+                        print(text_int_set)
         return text_int_set, metadata_int_set, matched_tvsm
 
     def match_speaker(self, t_int, m_int, threshold=90):
-        if fuzz.partial_ratio(t_int, m_int) > threshold:
+        if fuzz.token_set_ratio(t_int, m_int) > threshold:
             return True
         return False
 
