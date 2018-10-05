@@ -1,8 +1,12 @@
 from utils.backend import PleDB
 from collections import Counter
+from unicodedata import normalize
+from fuzzywuzzy import fuzz
+
 import yaml
 import os
 import sys
+import re
 import itertools
 
 def main(ple_code):
@@ -65,11 +69,8 @@ class Alignment(object):
             msg = 'WARNING: alignment blocks are not of the same size. %i vs %i'\
                   %(len(self.metadata_blocks),len(self.text_blocks))
             print(msg)
-        with open('blocks/%s.blk'%self.ple_code,'w') as out:
-            yaml.dump([compare\
-                       for compare in itertools.zip_longest(\
-                                                self.metadata_blocks,\
-                                                self.text_blocks)], out)
+        #self.write_blocks()
+        self.match_speakers()
 
     def get_mesa(self):
         all_metadata_intervinents = []
@@ -131,7 +132,9 @@ class Alignment(object):
                 msg = 'WARNING: using the most frequent'
                 print(msg)
                 self.text_mesa = most_text_int
-
+        msg = 'INFO: mesa pdf; %s |  mesa db; %s'%(self.text_mesa,
+                                                   self.metadata_mesa)
+        print(msg)
         self.mesa = 'mesa'
 
     def get_metadata_speakers(self):
@@ -183,6 +186,33 @@ class Alignment(object):
                 if speaker == self.text_mesa:
                     speaker = self.mesa
                 self.text_intervinents.append(speaker)
+        self.text_intervinents = self.post_process_text_names(self.text_intervinents)
+
+    def post_process_text_names(self, speakers):
+        self.name_dict = {}
+        for speaker in set(speakers):
+            match = re.search('(.+)\((.+)\)',speaker)
+            if match:
+                title, name = match.groups()
+                self.name_dict[self.normalize(speaker)] = name.strip()
+                self.name_dict[self.normalize(title)] = name.strip()
+        new = []
+        for speaker in speakers:
+            normalized_speaker = self.normalize(speaker)
+            if self.name_dict.get(normalized_speaker):
+                new.append(self.name_dict[normalized_speaker])
+            else:
+                new.append(speaker)
+        return new
+
+    def normalize(self, input_str):
+        return self.remove_accents(input_str.strip().lower())
+
+    @staticmethod
+    def remove_accents(input_str):
+        nfkd_form = normalize('NFKD', input_str)
+        only_ascii = nfkd_form.encode('ASCII', 'ignore')
+        return only_ascii
 
     @staticmethod 
     def get_blocks(ls, pause):
@@ -218,6 +248,53 @@ class Alignment(object):
                 end = start
             blocks.append((start,end,u))
         return blocks
+
+    def write_blocks(self):
+        with open('blocks/%s.blk'%self.ple_code,'w') as out:
+            yaml.dump([compare\
+                       for compare in itertools.zip_longest(\
+                                                self.metadata_blocks,\
+                                                self.text_blocks)], out)
+
+    def match_speakers(self):
+        text_int_set = set(self.text_intervinents)
+        metadata_int_set = set(self.metadata_intervinents)
+
+        print('matching', len(text_int_set),len(metadata_int_set))
+        text_int_set, metadata_int_set, matched_tvsm = \
+                     self.match_loop(text_int_set, metadata_int_set, 90)
+        if text_int_set:
+            msg = "INFO: there are unmatched pdf speakers."
+            for t_int in list(text_int_set):
+                for key, value in self.name_dict.items():
+                    if self.match_speaker(self.normalize(t_int),
+                                          key,
+                                          threshold=80):
+                        msg = "INFO: %s found in name similarity dict as %s"\
+                               %(t_int, value)
+                        print(msg)
+                        matched_tvsm[t_int] = matched_tvsm[value]
+                        text_int_set.remove(t_int)
+                        break
+        print(matched_tvsm)
+        if text_int_set or metadata_int_set:
+            print('INFO: unmatched', text_int_set,metadata_int_set)
+
+    def match_loop(self, text_int_set, metadata_int_set, threshold):
+        matched_tvsm = {}
+        for t_int in list(text_int_set):
+            if metadata_int_set:
+                for m_int in list(metadata_int_set):
+                    if self.match_speaker(t_int, m_int, threshold=threshold):
+                        matched_tvsm[t_int] = m_int
+                        metadata_int_set.remove(m_int)
+                        text_int_set.remove(t_int)
+        return text_int_set, metadata_int_set, matched_tvsm
+
+    def match_speaker(self, t_int, m_int, threshold=90):
+        if fuzz.partial_ratio(t_int, m_int) > threshold:
+            return True
+        return False
 
 if __name__ == "__main__":
     ple_code = sys.argv[1]
