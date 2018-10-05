@@ -65,10 +65,11 @@ class Alignment(object):
             msg = 'WARNING: alignment blocks are not of the same size. %i vs %i'\
                   %(len(self.metadata_blocks),len(self.text_blocks))
             print(msg)
-            '''
-            for compare in itertools.zip_longest(self.metadata_blocks, self.text_blocks):
-                print(compare)
-            '''
+        with open('blocks/%s.blk'%self.ple_code,'w') as out:
+            yaml.dump([compare\
+                       for compare in itertools.zip_longest(\
+                                                self.metadata_blocks,\
+                                                self.text_blocks)], out)
 
     def get_mesa(self):
         all_metadata_intervinents = []
