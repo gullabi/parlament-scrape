@@ -241,7 +241,6 @@ class parseXML(object):
         self.get_speaker_properties()
         self.merge_speakers()
         self.create_speaker_tree()
-        #self.merge_speakers()
 
     def get_speaker_properties(self):
         if not self.filtered_lines:
@@ -316,14 +315,14 @@ class parseXML(object):
             prior_line = self.filtered_lines[i-1]
             prior_sp = prior_line['text'].strip()
             if prior_sp in self.speakers and\
-               line['text'] != self.text_font:
+               line['font'] != self.text_font:
                 # only merges two consecutive lines when the latter 
                 # line has a font different then the main text
                 # this allows for merging lines which have fonts
                 # other than the self.speaker_font
                 if isclose(float(prior_line['top'])+\
                            float(prior_line['height']),\
-                           float(line['top']),abs_tol=2):
+                           float(line['top']),abs_tol=3):
                     print('INFO: found speakers to merge',prior_sp,current_sp)
                     to_be_merged.append((i-1,i))
         if to_be_merged:

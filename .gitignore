@@ -6,4 +6,5 @@
 *.xml
 xml_test*
 yamls/
+blocks/
 venv/
