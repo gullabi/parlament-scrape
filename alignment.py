@@ -181,7 +181,7 @@ class Alignment(object):
         for d in self.text:
             speaker = list(d.keys())[0]
             talk = d[speaker]
-            if talk and 'ORDRE' not in speaker:
+            if talk and 'ORDRE' not in speaker and not speaker[0].islower():
                 if speaker == self.text_mesa:
                     speaker = self.mesa
                 self.text_intervinents.append(speaker)
@@ -266,14 +266,28 @@ class Alignment(object):
             msg = "INFO: there are unmatched pdf speakers."
             for t_int in list(text_int_set):
                 for key, value in self.name_dict.items():
+                    '''
+                    if the pdf speaker name is written in a different way (for
+                    example a ministers title is missing a word) maybe it was
+                    not picked up by the self.name_dict()
+
+                    this loop assumes that the normalized version was already
+                    matched and matched_tvsm should have it
+                    '''
                     if self.match_speaker(self.normalize(t_int),
                                           key,
                                           threshold=80):
                         msg = "INFO: %s found in name similarity dict as %s"\
                                %(t_int, value)
                         print(msg)
-                        matched_tvsm[t_int] = matched_tvsm[value]
-                        text_int_set.remove(t_int)
+                        try:
+                            matched_tvsm.append((t_int,\
+                                       self.find_in_tuple(matched_tvsm, value)))
+                            text_int_set.remove(t_int)
+                        except Exception as e:
+                            print('ERROR: the element in name_dict was actually'\
+                                  ' not matched with any db speaker')
+                            print(e)
                         break
         if text_int_set or metadata_int_set:
             print(matched_tvsm)
@@ -282,24 +296,41 @@ class Alignment(object):
             print('INFO: success! All matched.')
 
     def match_loop(self, text_int_set, metadata_int_set, threshold):
-        matched_tvsm = {}
+        matched_tvsm = []
         for t_int in list(text_int_set):
             if metadata_int_set:
                 for m_int in list(metadata_int_set):
                     if self.match_speaker(t_int.lower(),
                                           m_int.lower(),
                                           threshold=threshold):
-                        print('%s vs %s'%(t_int,m_int))
-                        matched_tvsm[t_int] = m_int
+                        #print('%s vs %s'%(t_int,m_int))
+                        matched_tvsm.append((t_int, m_int))
                         metadata_int_set.remove(m_int)
-                        text_int_set.remove(t_int)
-                        print(text_int_set)
+                        try:
+                            text_int_set.remove(t_int)
+                        except:
+                            print('WARNING: pdf speaker %s has two or more '\
+                                  'metadata counterparts %s'%(t_int,m_int))
+                        #print(text_int_set)
         return text_int_set, metadata_int_set, matched_tvsm
 
     def match_speaker(self, t_int, m_int, threshold=90):
         if fuzz.token_set_ratio(t_int, m_int) > threshold:
             return True
         return False
+
+    @staticmethod
+    def find_in_tuple(tpl, val):
+        '''
+        in a tuple searches val within in the first elements, 
+        returns the corresponding second element
+        '''
+        for t in tpl:
+            if t[0] == val:
+                return t[1]
+        msg = 'ERROR: tuple does not have %s in its first elements'\
+               %(str(val))
+        raise ValueError(msg)
 
 if __name__ == "__main__":
     ple_code = sys.argv[1]

@@ -292,7 +292,7 @@ class parseXML(object):
                         print('WARNING: no text for speaker',\
                               current_speaker)
                     self.speaker_tree.append(speaker_discourse)
-                current_speaker = line['text'].strip()
+                current_speaker = line['text'].strip().replace('\xa0',' ')
                 speaker_discourse = {current_speaker:''}
             else:
                 if current_speaker:
