@@ -2,6 +2,7 @@ from utils.backend import PleDB
 from collections import Counter
 from unicodedata import normalize
 from fuzzywuzzy import fuzz
+from utils.seq_aligner import needle, finalize
 
 import yaml
 import os
@@ -71,6 +72,8 @@ class Alignment(object):
             print(msg)
         #self.write_blocks()
         self.match_speakers()
+        if len(self.speaker_index) > 2:
+            self.align_speakers()
 
     def get_mesa(self):
         all_metadata_intervinents = []
@@ -274,9 +277,12 @@ class Alignment(object):
                     this loop assumes that the normalized version was already
                     matched and matched_tvsm should have it
                     '''
-                    if self.match_speaker(self.normalize(t_int),
+                    if b'president' not in self.normalize(t_int) and\
+                       self.match_speaker(self.normalize(t_int),
                                           key,
                                           threshold=80):
+                        # not to end up with false positives of vicepresident
+                        # of different types
                         msg = "INFO: %s found in name similarity dict as %s"\
                                %(t_int, value)
                         print(msg)
@@ -289,11 +295,25 @@ class Alignment(object):
                                   ' not matched with any db speaker')
                             print(e)
                         break
+
+        if text_int_set and metadata_int_set:
+            text_int_set, metadata_int_set, new_matched_tvsm = \
+                self.match_loop(text_int_set, metadata_int_set, 80)
+            if new_matched_tvsm:
+                print('INFO: found more matches comparing the initial '\
+                      'list of unmatched\n', new_matched_tvsm)
+            matched_tvsm += new_matched_tvsm
         if text_int_set or metadata_int_set:
             print(matched_tvsm)
-            print('INFO: unmatched', text_int_set,metadata_int_set)
+            print('INFO: unmatched', text_int_set, metadata_int_set)
         else:
             print('INFO: success! All matched.')
+        self.get_speaker_index_tuples(matched_tvsm,
+                                      text_int_set,
+                                      metadata_int_set)
+        #self.matched_tvsm = matched_tvsm
+        #self.text_int_set = text_int_set
+        #self.metadata_int_set = metadata_int_set
 
     def match_loop(self, text_int_set, metadata_int_set, threshold):
         matched_tvsm = []
@@ -331,6 +351,63 @@ class Alignment(object):
         msg = 'ERROR: tuple does not have %s in its first elements'\
                %(str(val))
         raise ValueError(msg)
+
+    def get_speaker_index_tuples(self, tvsm, t_set, m_set):
+        '''Converts the matched and unmatched speaker lists into one list of
+           speaker(s) vs index tuples.
+           Does not yet take into account the repetitions (only one-to-one)
+        '''
+        self.speaker_index = []
+        index = 0
+        for tm in tvsm:
+            self.speaker_index.append((tm[0], tm[1], index))
+            index += 1
+        for t in t_set:
+            self.speaker_index.append((t, '', index))
+            index += 1
+        for m in m_set:
+            self.speaker_index.append(('', m, index))
+            index += 1
+
+    def align_speakers(self):
+        '''two options: align intervinents or align blocks
+        '''
+        self.normalized_many2many_dict = {}
+        text_block_int = [e[2] for e in self.text_blocks]
+        meta_block_int = [e[2] for e in self.metadata_blocks]
+        text_int_seq = self.get_sequence(text_block_int, 0)
+        meta_int_seq = self.get_sequence(meta_block_int, 1)
+
+        text_int_seq = self.replace_many2many(text_int_seq)
+        meta_int_seq = self.replace_many2many(meta_int_seq)
+        text_int_aligned, meta_int_aligned = needle(text_int_seq, meta_int_seq)
+        for elements in self.speaker_index:
+            print(elements[::-1])
+        print(self.normalized_many2many_dict)
+
+    def get_sequence(self, name_seq, name_index):
+        seq = []
+        for name in name_seq:
+            index = [ref[2] for ref in self.speaker_index\
+                            if ref[name_index] == name]
+            for i in index[1:]:
+                self.normalized_many2many_dict[i] = index[0]
+            # if more than one index is found, the first index will be assigned
+            # they are stored in the normalized_many2many_dict
+            # the indicies will be replaced accordingly after both sequences
+            # are populated
+            seq.append(index[0])
+        return seq
+
+    def replace_many2many(self, seq):
+        new_seq = []
+        for s in seq:
+            replace = self.normalized_many2many_dict.get(s)
+            if replace:
+                new_seq.append(replace)
+            else:
+                new_seq.append(s)
+        return new_seq
 
 if __name__ == "__main__":
     ple_code = sys.argv[1]

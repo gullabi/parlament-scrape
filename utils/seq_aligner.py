@@ -1,8 +1,8 @@
 #This software is a free software. Thus, it is licensed under GNU General Public License.
 #Python implementation to Smith-Waterman Algorithm for Homework 1 of Bioinformatics class.
 #Forrest Bao, Sept. 26 <http://fsbao.net> <forrest.bao aT gmail.com>
+#Originally from https://github.com/alevchuk/pairwise-alignment-in-python
 
-# zeros() was origianlly from NumPy.
 # 2011-04-10 version was implemented by alevchuk
 # 2018-10-10 version by gullabi (ported to python3)
 def zeros(shape):
@@ -39,7 +39,11 @@ def finalize(align1, align2):
     for i in range(0,len(align1)):
         # if two AAs are the same, then output the letter
         if align1[i] == align2[i]:
-            symbol.append(align1[i])
+            if type(align1) == list:
+                element = str(align1[i]).zfill(2)
+            else:
+                element = align1[i]
+            symbol.append(element)
             identity = identity + 1
             score += match_score(align1[i], align2[i])
     
@@ -58,9 +62,16 @@ def finalize(align1, align2):
     
     print('Identity =', "%3.3f" % identity, 'percent')
     print('Score =', score)
-    print(align1)
-    print(symbol)
-    print(align2)
+    if type(align1) == list:
+        print('|'.join([str(a).zfill(2) for a in align1]))
+    else:
+        print(align1)
+        print('|'.join(align1))
+    print('|'.join(symbol))
+    if type(align2) == list:
+        print('|'.join([str(a).zfill(2) for a in align2]))
+    else:
+        print('|'.join(align2))
 
 
 def needle(seq1, seq2):
@@ -115,6 +126,7 @@ def needle(seq1, seq2):
         j -= 1
 
     finalize(align1, align2)
+    return align1, align2
 
 def water(seq1, seq2):
     m, n = len(seq1), len(seq2)  # length of two sequences
@@ -165,3 +177,4 @@ def water(seq1, seq2):
             i -= 1
 
     finalize(align1, align2)
+    return align1, align2
