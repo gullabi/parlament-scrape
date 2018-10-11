@@ -53,6 +53,8 @@ class Alignment(object):
     def get_metadata(self):
         self.metadata = [] 
         for r in self.db.get_from_code(self.ple_code):
+            ints = sorted(r['interventions'], key=lambda dct:dct['start'])
+            r['interventions'] = ints
             self.metadata.append(r)
 
     def get_text(self):
@@ -111,9 +113,18 @@ class Alignment(object):
                 print('using most and the last')
                 self.metadata_mesa = last_meta_int
             else:
-                msg = 'WARNING: using the most frequent'
-                print(msg)
-                self.metadata_mesa = most_meta_int
+                found = False
+                for interv in [first_meta_int, last_meta_int, most_meta_int]:
+                    if 'parlament' in interv.lower():
+                        msg = "WARNING: using the name with parlament in it"
+                        print(msg)
+                        found = True
+                        self.metadata_mesa = interv
+                        break
+                if not found:
+                    msg = 'WARNING: using the most frequent'
+                    print(msg)
+                    self.metadata_mesa = most_meta_int
 
         if first_text_int == most_text_int and last_text_int == most_text_int:
             self.text_mesa = first_text_int
@@ -132,9 +143,17 @@ class Alignment(object):
                 print('using the most and the last')
                 self.text_mesa = last_text_int
             else:
-                msg = 'WARNING: using the most frequent'
-                print(msg)
-                self.text_mesa = most_text_int
+                for interv in [first_text_int, last_text_int, most_text_int]:
+                    if 'parlament' in interv.lower():
+                        msg = "WARNING: using the name with parlament in it"
+                        print(msg)
+                        found = True
+                        self.text_mesa = interv
+                        break
+                if not found:
+                    msg = 'WARNING: using the most frequent'
+                    print(msg)
+                    self.text_mesa = most_text_int
         msg = 'INFO: mesa pdf; %s |  mesa db; %s'%(self.text_mesa,
                                                    self.metadata_mesa)
         print(msg)
