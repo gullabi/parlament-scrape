@@ -143,6 +143,7 @@ class Alignment(object):
                 print('using the most and the last')
                 self.text_mesa = last_text_int
             else:
+                found = False
                 for interv in [first_text_int, last_text_int, most_text_int]:
                     if 'parlament' in interv.lower():
                         msg = "WARNING: using the name with parlament in it"
