@@ -26,9 +26,6 @@ def match_score(alpha, beta):
         return mismatch_penalty
 
 def finalize(align1, align2):
-    align1 = align1[::-1]    #reverse sequence 1
-    align2 = align2[::-1]    #reverse sequence 2
-    
     i,j = 0,0
     
     #calcuate identity, score and aligned sequeces
@@ -95,7 +92,7 @@ def needle(seq1, seq2):
     # Traceback and compute the alignment 
     align1, align2 = [], []
     i,j = m,n # start from the bottom right cell
-    while i > 0 and j > 0: # end toching the top or the left edge
+    while i > 0 and j > 0: # end touching the top or the left edge
         score_current = score[i][j]
         score_diagonal = score[i-1][j-1]
         score_up = score[i][j-1]
@@ -125,8 +122,7 @@ def needle(seq1, seq2):
         align2.append(seq2[j-1])
         j -= 1
 
-    finalize(align1, align2)
-    return align1, align2
+    return align1[::-1], align2[::-1]
 
 def water(seq1, seq2):
     m, n = len(seq1), len(seq2)  # length of two sequences
@@ -176,5 +172,4 @@ def water(seq1, seq2):
             align2.append('--')
             i -= 1
 
-    finalize(align1, align2)
-    return align1, align2
+    return align1[::-1], align2[::-1]

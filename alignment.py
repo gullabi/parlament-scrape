@@ -72,10 +72,10 @@ class Alignment(object):
             msg = 'WARNING: alignment blocks are not of the same size. %i vs %i'\
                   %(len(self.metadata_blocks),len(self.text_blocks))
             print(msg)
-        #self.write_blocks()
         self.match_speakers()
         if len(self.speaker_index) > 2:
             self.align_speakers()
+        self.write_blocks()
 
     def get_mesa(self):
         all_metadata_intervinents = []
@@ -324,7 +324,6 @@ class Alignment(object):
                       'list of unmatched\n', new_matched_tvsm)
             matched_tvsm += new_matched_tvsm
         if text_int_set or metadata_int_set:
-            print(matched_tvsm)
             print('INFO: unmatched', text_int_set, metadata_int_set)
         else:
             print('INFO: success! All matched.')
@@ -390,7 +389,9 @@ class Alignment(object):
             index += 1
 
     def align_speakers(self):
-        '''two options: align intervinents or align blocks
+        '''Uses the built blocks to align the speakers
+           Otherwise the repetitions in one block hinders the discovery
+           of "good" alignments
         '''
         self.normalized_many2many_dict = {}
         text_block_int = [e[2] for e in self.text_blocks]
@@ -401,9 +402,12 @@ class Alignment(object):
         text_int_seq = self.replace_many2many(text_int_seq)
         meta_int_seq = self.replace_many2many(meta_int_seq)
         text_int_aligned, meta_int_aligned = needle(text_int_seq, meta_int_seq)
+        finalize(text_int_aligned, meta_int_aligned)
         for elements in self.speaker_index:
             print(elements[::-1])
         print(self.normalized_many2many_dict)
+        self.text_blocks = self.sequence2name(text_int_aligned, self.text_blocks, 0)
+        self.metadata_blocks = self.sequence2name(meta_int_aligned, self.metadata_blocks, 1)
 
     def get_sequence(self, name_seq, name_index):
         seq = []
@@ -428,6 +432,24 @@ class Alignment(object):
             else:
                 new_seq.append(s)
         return new_seq
+
+    def sequence2name(self, seq, blocks, index):
+        new_blocks = []
+        for s in seq[::-1]:
+            if s != '--':
+                name = self.speaker_index[int(s)][index]
+                if not name == blocks[-1][2]:
+                    # TODO unless we invert replace_many2many operation
+                    # there is nothing else to do. We just have to trust
+                    # the index order
+                    print('WARNING: name is not as expected.'\
+                          ' Could be another equivalent name.',\
+                          (s,name,blocks[-1][2]))
+                new_blocks.append(blocks[-1])
+                blocks.pop()
+            else:
+                new_blocks.append((None, None, None))
+        return new_blocks[::-1]
 
 if __name__ == "__main__":
     ple_code = sys.argv[1]
