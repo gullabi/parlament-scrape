@@ -7,4 +7,5 @@
 xml_test*
 yamls/
 blocks/
+blocks_old/
 venv/
