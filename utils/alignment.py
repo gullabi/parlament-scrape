@@ -1,5 +1,5 @@
 from collections import Counter
-from unicodedata import normalize
+from unicodedata import normalize as nrmlz
 from fuzzywuzzy import fuzz
 from utils.seq_aligner import needle, finalize
 
@@ -200,7 +200,7 @@ class Alignment(object):
 
     @staticmethod
     def remove_accents(input_str):
-        nfkd_form = normalize('NFKD', input_str)
+        nfkd_form = nrmlz('NFKD', input_str)
         only_ascii = nfkd_form.encode('ASCII', 'ignore')
         return only_ascii
 
