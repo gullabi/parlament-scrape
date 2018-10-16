@@ -33,6 +33,7 @@ def get_all(db):
 def get_one(db, ple_code):
     align = Alignment(ple_code=ple_code, db=db)
     align.block_align()
+    align.output_media_vs_text()
 
 if __name__ == "__main__":
     ple_code = sys.argv[1]

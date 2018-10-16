@@ -133,9 +133,12 @@ class Alignment(object):
             self.get_mesa()
         self.metadata_intervinents = []
         metadata_int_structured = []
+        # TODO check if media needs structuring
+        metadata_urls = []
         for m in self.metadata:
             for intervention in m['interventions']:
                 ints = []
+                urls = []
                 for intervinent in intervention['intervinent']:
                     if self.metadata_mesa in intervinent:
                         speaker = self.mesa
@@ -143,7 +146,11 @@ class Alignment(object):
                         speaker = intervinent.split('|')[0].strip().replace('\xa0',' ')
                     ints.append(speaker)
                 metadata_int_structured.append(ints)
+                metadata_urls.append(([intervinent.split('|')[0] \
+                                       for intervinent in intervention['intervinent']],\
+                                       intervention['media_url']))
         self.metadata_intervinents = self.post_process_db(metadata_int_structured)
+        self.metadata_media = metadata_urls
         return metadata_int_structured
 
     @staticmethod
@@ -168,14 +175,21 @@ class Alignment(object):
         return processed 
 
     def get_text_speakers(self):
+        '''Structures the speakers and also stores the speaker, text tuple
+           for later, for the output
+        '''
         self.text_intervinents = []
+        self.text_interventions = []
         for d in self.text:
             speaker = list(d.keys())[0]
+            speaker_out = speaker
             talk = d[speaker]
             if talk and 'ORDRE' not in speaker and not speaker[0].islower():
                 if speaker == self.text_mesa:
                     speaker = self.mesa
+                    speaker_out = self.text_mesa
                 self.text_intervinents.append(speaker)
+                self.text_interventions.append((speaker_out, talk))
         self.text_intervinents = self.post_process_text_names(self.text_intervinents)
 
     def post_process_text_names(self, speakers):
@@ -418,3 +432,58 @@ class Alignment(object):
             else:
                 new_blocks.append((None, None, None))
         return new_blocks[::-1]
+
+    def output_media_vs_text(self):
+        '''Only outputs the best metadata vs text
+        '''
+        base_path = 'sessions'
+        ple_path = os.path.join(base_path, self.ple_code)
+        if not os.path.exists(ple_path):
+            os.makedirs(ple_path)
+
+        best_blocks = self.get_best_aligned_pairs()
+        # output best blocks
+        count = 0
+        #print(self.metadata)
+        for best_text, best_meta in best_blocks:
+            d = {}
+            media_urls = self.metadata_block_media(best_meta)
+            aligned_text = self.text_block_contents(best_text)
+            #print(best_text[:2],[text[0] for text in aligned_text])
+            d['ple_code'] = self.ple_code
+            d['text'] = aligned_text
+            d['urls'] = media_urls
+            count += 1
+            out_file = os.path.join(ple_path, str(count).zfill(2)+'.yaml')
+            with open(out_file, 'w') as out:
+                yaml.dump(d, out)
+
+    def get_best_aligned_pairs(self):
+        '''Checks the aligned blocks for good alignments
+        '''
+        good_blocks = []
+        alignment = list(itertools.zip_longest(self.text_blocks,
+                                          self.metadata_blocks))
+        for i, block_row in enumerate(itertools.zip_longest(self.text_blocks,\
+                                                       self.metadata_blocks)):
+            if i == 0 or i == len(alignment)-1:
+                continue
+            block_is_good = True
+            # If the row is surrounded by aligned rows of blocks it is good
+            for row in alignment[i-1:i+1]:
+                if block_is_good:
+                    for block in row:
+                        if not block[0]:
+                            block_is_good = False
+                            break
+            if block_is_good:
+                good_blocks.append(block_row)
+        return good_blocks
+
+    def metadata_block_media(self, metadata_block):
+        start_i, end_i = metadata_block[:2]
+        return self.metadata_media[start_i:end_i+1]
+
+    def text_block_contents(self, text_block):
+        start_i, end_i = text_block[:2]
+        return self.text_interventions[start_i:end_i+1]
