@@ -485,14 +485,13 @@ class Alignment(object):
                 continue
             block_is_good = True
             # If the row is surrounded by aligned rows of blocks it is good
-            for row in alignment[i-1:i+1]:
+            for row in alignment[i-1:i+2]:
                 if block_is_good:
                     for block in row:
                         if not block[0]:
                             block_is_good = False
                             break
             if block_is_good:
-                print(i, block_row)
                 good_blocks.append(block_row)
         return good_blocks
 
