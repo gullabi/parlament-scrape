@@ -481,6 +481,7 @@ class Alignment(object):
                                           self.metadata_blocks))
         for i, block_row in enumerate(itertools.zip_longest(self.text_blocks,\
                                                        self.metadata_blocks)):
+            # TODO if 100% match use also the beginning and the end
             if i == 0 or i == len(alignment)-1:
                 continue
             block_is_good = True
@@ -488,7 +489,7 @@ class Alignment(object):
             for row in alignment[i-1:i+2]:
                 if block_is_good:
                     for block in row:
-                        if not block[0]:
+                        if not block[2]:
                             block_is_good = False
                             break
             if block_is_good:
