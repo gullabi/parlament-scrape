@@ -34,8 +34,11 @@ class Alignment(object):
         self.get_mesa()
         self.get_metadata_speakers()
         self.get_text_speakers()
+        print('metadata_int')
         self.metadata_blocks = self.get_blocks(self.metadata_intervinents, self.mesa)
+        print('text_int')
         self.text_blocks = self.get_blocks(self.text_intervinents, self.mesa)
+        print(self.text_blocks)
         if len(self.metadata_blocks) != len(self.text_blocks):
             msg = 'WARNING: alignment blocks are not of the same size. %i vs %i'\
                   %(len(self.metadata_blocks),len(self.text_blocks))
@@ -234,21 +237,20 @@ class Alignment(object):
         end = 0
         for u in uniques:
             search_beginning = True
-            #print(u)
             for i, p in enumerate(ls):
-                if i > end:
+                if i >= end:
                     if search_beginning:
                         if p == pause or p == u:
                             start = i
                             search_beginning = False
-                            #print('start',start)
+                            print('start',start)
                     else:
                         if p != u and p != pause:
                             end = i-1
-                            #print('end',end)
                             break
             search_beginning = True
             if end < start:
+                # in the case the end of the list is reached without a match
                 end = start
             blocks.append((start,end,u))
         return blocks
@@ -278,8 +280,13 @@ class Alignment(object):
 
                     this loop assumes that the normalized version was already
                     matched and matched_tvsm should have it
+
+                    name similarity might lead to false positives for 2 cases:
+                    * el president (de generalitat) presindent(a) del parlament
+                    * secretari mesa d'edat which there are multiple
                     '''
-                    if b'president' not in self.normalize(t_int) and\
+                    if b'mesa' not in self.normalize(t_int) and\
+                       b'president' not in self.normalize(t_int) and\
                        self.match_speaker(self.normalize(t_int),
                                           key,
                                           threshold=80):
@@ -318,13 +325,21 @@ class Alignment(object):
 
     def match_loop(self, text_int_set, metadata_int_set, threshold):
         matched_tvsm = []
+        if 'mesa' in text_int_set or 'mesa' in metadata_int_set:
+            print('INFO: Trying to find mesa ve mesa first')
+            for t_int in list(text_int_set):
+                for m_int in list(metadata_int_set):
+                    if t_int == 'mesa' and t_int == m_int:
+                        print('INFO: mesa vs mesa found')
+                        matched_tvsm.append((t_int, m_int))
+                        metadata_int_set.remove(m_int)
+                        text_int_set.remove(t_int)
         for t_int in list(text_int_set):
             if metadata_int_set:
                 for m_int in list(metadata_int_set):
                     if self.match_speaker(t_int.lower(),
                                           m_int.lower(),
                                           threshold=threshold):
-                        #print('%s vs %s'%(t_int,m_int))
                         matched_tvsm.append((t_int, m_int))
                         metadata_int_set.remove(m_int)
                         try:
@@ -477,6 +492,7 @@ class Alignment(object):
                             block_is_good = False
                             break
             if block_is_good:
+                print(i, block_row)
                 good_blocks.append(block_row)
         return good_blocks
 
