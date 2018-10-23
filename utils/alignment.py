@@ -13,32 +13,66 @@ class Alignment(object):
         self.db = db
         self.db.connect()
 
+        self.ple_date = None
+        # check if ple_code in db
+        if not db.backend.find_one(ple_code):
+            date = self.convert_code2date(ple_code)
+            msg = 'attempting to query %s with date %s'\
+                  %(ple_code, date)
+            print('WARNING: %s'%msg)
+            query_sessions = [session for session in \
+                              db.backend.find({"date":date})]
+            if not query_sessions:
+                msg = 'neither ple_code nor date found in db.'
+                raise ValueError(msg)
+            else:
+                # if self.ple_date exists use it for queries
+                self.ple_date = date
+
         self.ple_code = ple_code
         self.yaml_path = yaml_path
         self.get_metadata()
         self.get_text()
 
+    @staticmethod
+    def convert_code2date(ple_code):
+        split = ple_code.split('_')[:-1]
+        return '/'.join(split[::-1])
+
     def get_metadata(self):
-        self.metadata = [] 
-        for r in self.db.get_from_code(self.ple_code):
+        self.metadata = []
+        if self.ple_date:
+            sessions = [r \
+                        for r in self.db.backend.find({"date":self.ple_date})]
+            if len(sessions) > 1:
+                msg = 'there are multiple results for date %s in db'\
+                      %self.ple_date
+                print('WARNING: %s'%msg)
+        else:
+            sessions = [r for r in self.db.get_from_code(self.ple_code)]
+        for r in sessions:
             ints = sorted(r['interventions'], key=lambda dct:dct['start'])
             r['interventions'] = ints
             self.metadata.append(r)
+        if not self.metadata:
+            msg = '%s not found of no metadata imported from db'%self.ple_code
+            raise ValueError(msg)
 
     def get_text(self):
         yaml_file = os.path.join(self.yaml_path,
                                  self.ple_code+'speaker.yaml') 
         self.text = yaml.load(open(os.path.join(self.yaml_path,
                                          self.ple_code+'_speaker.yaml'), 'r'))
+        if not self.text:
+            msg = '%s yaml text empty'%self.ple_code
+            raise ValueError(msg)
+
     def block_align(self):
         self.get_mesa()
         self.get_metadata_speakers()
         self.get_text_speakers()
-        print('metadata_int')
         self.metadata_blocks = self.get_blocks(self.metadata_intervinents, self.mesa)
-        print('text_int')
         self.text_blocks = self.get_blocks(self.text_intervinents, self.mesa)
-        print(self.text_blocks)
         if len(self.metadata_blocks) != len(self.text_blocks):
             msg = 'WARNING: alignment blocks are not of the same size. %i vs %i'\
                   %(len(self.metadata_blocks),len(self.text_blocks))
@@ -243,7 +277,6 @@ class Alignment(object):
                         if p == pause or p == u:
                             start = i
                             search_beginning = False
-                            print('start',start)
                     else:
                         if p != u and p != pause:
                             end = i-1
@@ -452,7 +485,7 @@ class Alignment(object):
         '''Only outputs the best metadata vs text
         '''
         base_path = 'sessions'
-        ple_path = os.path.join(base_path, self.ple_code)
+        ple_path = os.path.join(base_path, self.ple_code, 'text')
         if not os.path.exists(ple_path):
             os.makedirs(ple_path)
 
