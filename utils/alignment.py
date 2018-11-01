@@ -192,23 +192,27 @@ class Alignment(object):
 
     @staticmethod
     def post_process_db(lines):
+        '''
+        Processes the intervinent list from the db elements, in order to extract a
+        single speaker.
+        WARNING: In some cases we might still end up with multiple speakers
+        '''
         processed = []
         for line in lines:
             if len(line) == 1:
                 processed.append(line[0])
             else:
+                print('postprocessing ',line)
                 index = -1
-                try:
-                    processed.append(line[0])
-                except:
-                    print('WARNING: determined "mesa" not in list')
-                if index != -1:
+                if 'mesa' in line:
+                    index = line.index('mesa')
                     line.pop(index)
-                if len(line) > 2:
-                    print('after post-process there are still multiple intervinents')
-                    print(line)
                 else:
-                    processed.append(line[0])
+                    print('WARNING: determined "mesa" not in list')
+                if len(line) > 2:
+                    print('after post-process there are still multiple intervinents',\
+                          line,'\n   adding only the first one')
+                processed.append(line[0])
         return processed 
 
     def get_text_speakers(self):
