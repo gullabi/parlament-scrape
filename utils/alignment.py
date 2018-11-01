@@ -209,7 +209,7 @@ class Alignment(object):
                     line.pop(index)
                 else:
                     print('WARNING: determined "mesa" not in list')
-                if len(line) > 2:
+                if len(line) > 1:
                     print('after post-process there are still multiple intervinents',\
                           line,'\n   adding only the first one')
                 processed.append(line[0])
@@ -384,7 +384,6 @@ class Alignment(object):
                         except:
                             print('WARNING: pdf speaker %s has two or more '\
                                   'metadata counterparts %s'%(t_int,m_int))
-                        #print(text_int_set)
         return text_int_set, metadata_int_set, matched_tvsm
 
     def match_speaker(self, t_int, m_int, threshold=90):
@@ -437,8 +436,6 @@ class Alignment(object):
         meta_int_seq = self.replace_many2many(meta_int_seq)
         text_int_aligned, meta_int_aligned = needle(text_int_seq, meta_int_seq)
         finalize(text_int_aligned, meta_int_aligned)
-        for elements in self.speaker_index:
-            print(elements[::-1])
         print(self.normalized_many2many_dict)
         self.text_blocks = self.sequence2name(text_int_aligned, self.text_blocks, 0)
         self.metadata_blocks = self.sequence2name(meta_int_aligned, self.metadata_blocks, 1)
@@ -496,12 +493,10 @@ class Alignment(object):
         best_blocks = self.get_best_aligned_pairs()
         # output best blocks
         count = 0
-        #print(self.metadata)
         for best_text, best_meta in best_blocks:
             d = {}
             media_urls = self.metadata_block_media(best_meta)
             aligned_text = self.text_block_contents(best_text)
-            #print(best_text[:2],[text[0] for text in aligned_text])
             d['ple_code'] = self.ple_code
             d['text'] = aligned_text
             d['urls'] = media_urls
@@ -509,6 +504,15 @@ class Alignment(object):
             out_file = os.path.join(ple_path, str(count).zfill(2)+'.yaml')
             with open(out_file, 'w') as out:
                 yaml.dump(d, out)
+
+        # output aligned speaker list
+        sp_file_path = os.path.join(base_path, self.ple_code,
+                                    'aligned_speakers.ls')
+        sp_list = [(self.text_mesa,
+                    self.metadata_mesa.split('|')[0].strip())]+\
+                  [(sp[0], sp[1]) for sp in self.speaker_index[1:]]
+        with open(sp_file_path, 'w') as sp_out:
+            yaml.dump(sp_list, sp_out)
 
     def get_best_aligned_pairs(self):
         '''Checks the aligned blocks for good alignments
