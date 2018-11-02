@@ -508,8 +508,7 @@ class Alignment(object):
         # output aligned speaker list
         sp_file_path = os.path.join(base_path, self.ple_code,
                                     'aligned_speakers.ls')
-        sp_list = [(self.text_mesa,
-                    self.metadata_mesa.split('|')[0].strip())]+\
+        sp_list = [(self.text_mesa, self.metadata_mesa.split('|')[0])]+\
                   [(sp[0], sp[1]) for sp in self.speaker_index[1:]]
         with open(sp_file_path, 'w') as sp_out:
             yaml.dump(sp_list, sp_out)
