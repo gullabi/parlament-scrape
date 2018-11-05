@@ -8,11 +8,13 @@ from subprocess import call, check_output, DEVNULL
 from multiprocessing.dummy import Pool
 #from tqdm import *
 
+from utils.clean import structure_clean, punctuation_normalize, hyphenfix
+
 lexicon = 'utils/lexicon_set_ca.bin'
 with open(lexicon, 'rb') as lexicon_file:
     lexicon_set = pickle.load(lexicon_file)
 
-token_clean = '\.|,|:|;|!|\?|"|\.\.\.|\(|\)|-|-#| - |’|‘|¿|¡| · | \' |<.+>'
+token_clean = '\.|,|:|;|!|\?|"|\.\.\.|\(|\)|–|-#| - |’|‘|¿|¡| · | \' |\<i\>|\</i\>'
 
 def main(option):
     if option == 'all':
@@ -55,7 +57,7 @@ def get_candidate(session, path='sessions'):
 
 def process_text(interventions, speakers):
     '''Check for certain properties, if acceptable returns a 
-       cleaned text with a media url
+       clean text with a media url
     '''
     if len(interventions['urls']) > 1:
         return False
@@ -66,6 +68,7 @@ def process_text(interventions, speakers):
     if len(intervinents) > 1:
         msg = "potentially more than one speaker found"
         print('WARNING: %s %s'%(msg,str(intervinents)))
+    intervinent = list(intervinents)[0]
 
     # if mesa intervention in the beginning or in the end, remove them
     for i in [0, -1]:
@@ -74,21 +77,31 @@ def process_text(interventions, speakers):
             interventions['text'].pop(i)
 
     full_text = ''
+    full_speaker_text = ''
     # clean text for each speaker
     for intervention in interventions['text']:
         full_text += intervention[1]
+        if intervention[0] == intervinent:
+            full_speaker_text += intervention[1]
 
-    if not is_catalan(full_text):
+    if not is_catalan(full_speaker_text):
+        return False
+
+    speaker_word_fraction = len(full_speaker_text.split())/len(full_text.split())
+    if speaker_word_fraction < 0.7:
+        print('%s only speaks only a %1.2f fraction of the words'\
+               %(intervinent, speaker_word_fraction))
         return False
 
     for intervention in interventions['text']:
         cleaned_text = clean_text(intervention[1])
         intervention = (intervention[0], cleaned_text)
-
+    print(intervention)
     return True
 
 def clean_text(text):
-    return text
+    clean_text = hyphenfix(punctuation_normalize(structure_clean(text)))
+    return clean_text
 
 def is_catalan(text, threshold=0.7):
     tokens = re.sub(token_clean, '', text).lower().split()
