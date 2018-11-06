@@ -1,6 +1,7 @@
 import sys
 import re
 import pickle
+import logging
 
 lexicon = 'utils/lexicon_set_ca2.bin'
 with open(lexicon, 'rb') as lexicon_file:
@@ -82,14 +83,14 @@ def hyphenfix(text):
                 # when and if we need to replace
                 clean_word = clean_match.group()
             else:
-                print('WARNING: %s is not a valid word?'%word)
+                logging.warning('%s is not a valid word?'%word)
             replaced = clean_word.replace('-','').lower()
             if clean_word.lower() in lexicon_set:
                 continue
             elif replaced in lexicon_set:
                 replace_tasks[clean_word] = replaced
             else:
-                print("INFO: unknown hyphen",word)
+                logging.info("unknown hyphen %s"%word)
     for key, value in replace_tasks.items():
         text = text.replace(key,replace_tasks[key])
     return text
@@ -115,7 +116,7 @@ def correct_orthography(text):
             # If sentence has non-valid characters
             return False
     else:
-        print("Warning:\n %s"%text)
+        logging.warning(text)
         return False
     return True 
 
