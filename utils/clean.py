@@ -89,7 +89,7 @@ def hyphenfix(text):
             elif replaced in lexicon_set:
                 replace_tasks[clean_word] = replaced
             else:
-                print("WARNING: unknown hyphen",word)
+                print("INFO: unknown hyphen",word)
     for key, value in replace_tasks.items():
         text = text.replace(key,replace_tasks[key])
     return text

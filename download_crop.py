@@ -20,22 +20,26 @@ def main(option):
     if option == 'all':
         candidates = get_candidates()
     else:
-        candidates = get_candidate(option)
+        candidates = {}
+        candidate = get_candidate(option)
+        candidates[option] = candidate
+    with open('processed_session_texts.json', 'w') as out:
+        yaml.dump(candidates, out)
     '''
     download_media(candidates)
     crop_media(candidates)
     '''
 
 def get_candidates(path='sessions'):
-    candidates = []
+    candidates = {}
     for session in os.listdir(path):
         texts = get_canditate(session)
         if texts:
-            candidates += texts
+            candidates[session] = texts
     return candidates
 
 def get_candidate(session, path='sessions'):
-    texts = []
+    texts = {}
     speakers_file = os.path.join(path, session, 'aligned_speakers.ls')
     session_text_path = os.path.join(path, session, 'text')
     if not os.path.exists(speakers_file) or\
@@ -50,7 +54,7 @@ def get_candidate(session, path='sessions'):
             text_dict = yaml.load(read)
             speakers = yaml.load(sf)
             if process_text(text_dict, speakers):
-                texts.append(text_dict)
+                texts[filepath] = text_dict
             else:
                 print('%s rejected'%filepath)
     return texts
@@ -87,16 +91,20 @@ def process_text(interventions, speakers):
     if not is_catalan(full_speaker_text):
         return False
 
+    if len(full_speaker_text.split()) < 130:
+        msg = "WARNING: speech too short"
+        print(msg)
+        return False
+
     speaker_word_fraction = len(full_speaker_text.split())/len(full_text.split())
     if speaker_word_fraction < 0.7:
         print('%s only speaks only a %1.2f fraction of the words'\
                %(intervinent, speaker_word_fraction))
         return False
 
-    for intervention in interventions['text']:
+    for i, intervention in enumerate(interventions['text']):
         cleaned_text = clean_text(intervention[1])
-        intervention = (intervention[0], cleaned_text)
-    print(intervention)
+        interventions['text'][i] = (intervention[0], cleaned_text)
     return True
 
 def clean_text(text):
@@ -111,7 +119,8 @@ def is_catalan(text, threshold=0.7):
         tokens_in_language = len(set(tokens).intersection(lexicon_set))
         score = float(tokens_in_language)/float(no_tokens)
         if score < threshold:
-            print('%2.2f not catalan'%(1.0-score))
+            msg = 'WARNING: %2.2f not catalan'%(1.0-score)
+            print(msg)
             return False
     return True 
 
