@@ -235,6 +235,7 @@ class Alignment(object):
 
     def post_process_text_names(self, speakers):
         self.name_dict = {}
+        self.text_speaker_normalizations = []
         for speaker in set(speakers):
             match = re.search('(.+)\((.+)\)',speaker)
             if match:
@@ -246,6 +247,8 @@ class Alignment(object):
             normalized_speaker = self.normalize(speaker)
             if self.name_dict.get(normalized_speaker):
                 new.append(self.name_dict[normalized_speaker])
+                self.text_speaker_normalizations.append((speaker,
+                                           self.name_dict[normalized_speaker]))
             else:
                 new.append(speaker)
         return new
@@ -281,14 +284,17 @@ class Alignment(object):
                         if p == pause or p == u:
                             start = i
                             search_beginning = False
+                            msg = 'beginning for %s %i'%(u,start)
                     else:
                         if p != u and p != pause:
                             end = i-1
+                            msg = 'found end %s %i'%(p, end)
                             break
             search_beginning = True
             if end < start:
                 # in the case the end of the list is reached without a match
                 end = start
+                msg = 'did not find end for %s %i'%(p, end)
             blocks.append((start,end,u))
         return blocks
 
@@ -347,7 +353,7 @@ class Alignment(object):
                 self.match_loop(text_int_set, metadata_int_set, 80)
             if new_matched_tvsm:
                 print('INFO: found more matches comparing the initial '\
-                      'list of unmatched\n', new_matched_tvsm)
+                      'list of unmatched')#, new_matched_tvsm)
             matched_tvsm += new_matched_tvsm
         if text_int_set or metadata_int_set:
             print('INFO: unmatched', text_int_set, metadata_int_set)
@@ -356,7 +362,7 @@ class Alignment(object):
         self.get_speaker_index_tuples(matched_tvsm,
                                       text_int_set,
                                       metadata_int_set)
-        #self.matched_tvsm = matched_tvsm
+        self.matched_tvsm = matched_tvsm
         #self.text_int_set = text_int_set
         #self.metadata_int_set = metadata_int_set
 
@@ -436,7 +442,6 @@ class Alignment(object):
         meta_int_seq = self.replace_many2many(meta_int_seq)
         text_int_aligned, meta_int_aligned = needle(text_int_seq, meta_int_seq)
         finalize(text_int_aligned, meta_int_aligned)
-        print(self.normalized_many2many_dict)
         self.text_blocks = self.sequence2name(text_int_aligned, self.text_blocks, 0)
         self.metadata_blocks = self.sequence2name(meta_int_aligned, self.metadata_blocks, 1)
 
@@ -490,6 +495,19 @@ class Alignment(object):
         if not os.path.exists(ple_path):
             os.makedirs(ple_path)
 
+        # output aligned speaker list
+        sp_file_path = os.path.join(base_path, self.ple_code,
+                                    'aligned_speakers.ls')
+        sp_list = [(self.text_mesa, self.metadata_mesa.split('|')[0])]+\
+                  [(sp[0], sp[1]) for sp in self.speaker_index[1:]]
+        with open(sp_file_path, 'w') as sp_out:
+            yaml.dump(sp_list, sp_out)
+        # save only the speakers with a match
+        self.text_speakers_set = set([sp[0] for sp in self.matched_tvsm]+\
+                         [sps[0] for sps in self.text_speaker_normalizations]+\
+                         [sps[1] for sps in self.text_speaker_normalizations])
+        self.meta_speakers_set = set([sp[1] for sp in self.matched_tvsm])
+
         best_blocks = self.get_best_aligned_pairs()
         # output best blocks
         count = 0
@@ -504,14 +522,6 @@ class Alignment(object):
             out_file = os.path.join(ple_path, str(count).zfill(2)+'.yaml')
             with open(out_file, 'w') as out:
                 yaml.dump(d, out)
-
-        # output aligned speaker list
-        sp_file_path = os.path.join(base_path, self.ple_code,
-                                    'aligned_speakers.ls')
-        sp_list = [(self.text_mesa, self.metadata_mesa.split('|')[0])]+\
-                  [(sp[0], sp[1]) for sp in self.speaker_index[1:]]
-        with open(sp_file_path, 'w') as sp_out:
-            yaml.dump(sp_list, sp_out)
 
     def get_best_aligned_pairs(self):
         '''Checks the aligned blocks for good alignments
@@ -532,9 +542,31 @@ class Alignment(object):
                         if not block[2]:
                             block_is_good = False
                             break
-            if block_is_good:
+            if block_is_good and self.block_in_matched(block_row):
                 good_blocks.append(block_row)
+        with open('text_speakers.ls','w') as out:
+            for t in self.text_speakers_set:
+                out.write('%s\n'%t)
         return good_blocks
+
+    def block_in_matched(self, block_row):
+        text_speaker = block_row[0][2]
+        meta_speaker = block_row[1][2]
+        if text_speaker not in self.text_speakers_set or\
+            meta_speaker not in self.meta_speakers_set:
+            print("WARNING: Bad alignment? One of them is not in the list of"\
+                  " matched speakers: %s"%(str(block_row)))
+            # It is possible that sequence to sequence alignment
+            # serendipitously aligned a correct pair
+            # checking if it is the case
+            text_sp_norm = re.sub('\<.+?\>','',text_speaker).lower()
+            meta_sp_norm = meta_speaker.lower()
+            if self.match_speaker(text_sp_norm, meta_sp_norm, threshold=60):
+                msg = "INFO: They are a good"
+                print(msg)
+            else:
+                return False
+            return True
 
     def metadata_block_media(self, metadata_block):
         start_i, end_i = metadata_block[:2]

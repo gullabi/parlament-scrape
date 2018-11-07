@@ -78,6 +78,8 @@ def check_download(uri, filepath):
 
 @retry(stop_max_attempt_number=3, wait_fixed=1000)
 def curl_download(uri, filepath):
+    msg = 'checking %s'%uri
+    logging.info(msg)
     # check the http headers
     status, uri = get_status_code(uri)
     if status == 302:
@@ -108,7 +110,9 @@ def get_status_code(url):
         for h in header_list:
             if h.startswith(b'Location: '):
                 uri = h.strip().decode('ascii')[10:]
-    return int(header.split(b'\n')[0].split()[1]), uri
+                if 'http' not in uri:
+                    code = 401
+    return code, uri
 
 def simple_convert(source, target):
     '''makes a subprocess call to ffmpeg -i <source> <target>

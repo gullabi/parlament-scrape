@@ -38,7 +38,7 @@ def main(option):
     if candidates:
         with open('processed_session_texts.json', 'w') as out:
             yaml.dump(candidates, out)
-    download_media(candidates, threads=3)
+    download_media(candidates, threads=1)
     #crop_media(candidates)
 
 def get_candidates(candidates, path='sessions'):
@@ -66,6 +66,8 @@ def get_candidate(session, path='sessions'):
              open(speakers_file) as sf:
             text_dict = yaml.load(read)
             speakers = yaml.load(sf)
+            msg = 'processing %s'%filepath
+            logging.info(msg)
             if process_text(text_dict, speakers):
                 texts[filepath] = text_dict
             else:
@@ -85,7 +87,9 @@ def process_text(interventions, speakers):
     try:
         intervinents.remove(text_mesa)
     except:
-        sys.exit()
+        msg = 'Mesa speaker not found in intervinents for the text'\
+              ' %s'%str(interventions['text'])
+        logging.warning(msg)
     if len(intervinents) > 1:
         msg = "potentially more than one speaker found"\
               "%s"%(str(intervinents))
