@@ -42,7 +42,7 @@ def download_files_star(base_path_audio):
 def download_files(base_path, audio):
     '''creates the paths and initiates the download of files
     '''
-    audio_id, text, link = audio
+    text_path, text, link = audio
     paths = create_local_paths(base_path, audio)
     audio_path = os.path.dirname(paths['audio_path'])
     if not os.path.isdir(audio_path):
@@ -57,7 +57,11 @@ def create_local_paths(base_path, audio):
     '''
     text_path, text, link = audio
     paths = {}
-    paths['audio_path'] = text_path.replace('text', 'audio').replace('.yaml','.mp3')
+    base_name = os.path.basename(link)
+    paths['audio_path'] = os.path.join(base_path,
+                                       base_name[0],
+                                       base_name[1],
+                                       base_name)
     paths['txt_path'] = text_path.replace('text', 'clean_text')
     return paths
 
@@ -69,6 +73,9 @@ def check_download_convert(uri, filepath):
     if not os.path.isfile(filepath):
         # download
         check_download(uri, filepath)
+    else:
+        msg = 'skipping %s for %s'%(filepath, uri)
+        logging.info(msg)
 
 def check_download(uri, filepath):
     if not os.path.exists(filepath):
