@@ -544,9 +544,6 @@ class Alignment(object):
                             break
             if block_is_good and self.block_in_matched(block_row):
                 good_blocks.append(block_row)
-        with open('text_speakers.ls','w') as out:
-            for t in self.text_speakers_set:
-                out.write('%s\n'%t)
         return good_blocks
 
     def block_in_matched(self, block_row):
@@ -566,7 +563,7 @@ class Alignment(object):
                 print(msg)
             else:
                 return False
-            return True
+        return True
 
     def metadata_block_media(self, metadata_block):
         start_i, end_i = metadata_block[:2]
