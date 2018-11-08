@@ -1,12 +1,10 @@
 import os
 import re
-import sys
 import yaml
 import logging
 
 from copy import copy
 from pocketsphinx import AudioFile, get_model_path, get_data_path
-from audio import Audio
 
 MODEL_PATH = '/home/baybars/scripts/repositories/cmusphinx-models'
 CONFIG = {
@@ -31,14 +29,6 @@ grammar words;
 public <words> = <word>+;
 '''
 
-def main(audio_file, text_file):
-    text = get_text(text_file)
-    token_clean = '\.|,|;|:|\?|!|\.\.\.'
-    clean_text = re.sub(token_clean,' ',text).lower()
-    clean_text = re.sub(' {2,}', ' ', clean_text)
-    start, end, new_text = crop_longaudio(clean_text, audio_file)
-    print(start, end, new_text)
-
 def crop_longaudio(text, audio_file):
     text_snippets = get_text_start_end(text)
     audio_snippets, audio_offsets = get_audio_start_end(audio_file)
@@ -61,13 +51,6 @@ def crop_longaudio(text, audio_file):
     new_text = get_global_text(text, match_results)
     return (match_results[0][0], match_results[1][0], new_text)
 
-def get_text(text_file):
-    text_dict = yaml.load(open(text_file))
-    text = ''
-    for element in text_dict['text']:
-        text += element[1]
-    return text
-
 def get_text_start_end(text):
     '''returns the first and last 6 words. 
        TODO clean the text?
@@ -75,8 +58,8 @@ def get_text_start_end(text):
     words = text.split()
     return [words[:6], words[-6:]]
 
-def get_audio_start_end(audio_filepath):
-    audio_file = Audio(audio_filepath)
+def get_audio_start_end(audio_file):
+    audio_filepath = audio_file.filepath
     out_files = []
     offsets = []
     outpath = OUTPATH
@@ -144,7 +127,12 @@ def fsg_search(text_snippet, audio_snippet, offset_seconds,
             result_seconds = offset_seconds + match_result[1]
             search_snippet = search_snippet[::-1]
         else:
-            result_seconds = end_time # input total duration
+            # get result second from the audio_snippet filename
+            m = re.search('.+_\d+\.\d+_(\d+\.\d+).wav', audio_snippet)
+            if m:
+                result_seconds = float(m.groups()[0])
+            else:
+                result_seconds = end_time # input total duration
             search_snippet = text_snippet
     else:
         raise ValueError('option %s not known'%option)
@@ -194,12 +182,3 @@ def get_global_text(text, match_results):
         raise ValueError(msg)
     return text[start_index:end_index]
 
-if __name__ == "__main__":
-    audio_file = sys.argv[1]
-    text_file = sys.argv[2]
-
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s-%(levelname)s: %(message)s",
-                        handlers=[logging.StreamHandler()])
-
-    main(audio_file, text_file)
