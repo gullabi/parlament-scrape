@@ -33,8 +33,9 @@ public <words> = <word>+;
 
 def main(audio_file, text_file):
     text = get_text(text_file)
-    token_clean = '\.|,|;|:|\?|!'
-    clean_text = re.sub(token_clean,'',text).lower()
+    token_clean = '\.|,|;|:|\?|!|\.\.\.'
+    clean_text = re.sub(token_clean,' ',text).lower()
+    clean_text = re.sub(' {2,}', ' ', clean_text)
     start, end, new_text = crop_longaudio(clean_text, audio_file)
     print(start, end, new_text)
 
@@ -78,20 +79,23 @@ def get_audio_start_end(audio_filepath):
     audio_file = Audio(audio_filepath)
     out_files = []
     offsets = []
+    outpath = OUTPATH
     if audio_file.duration > 100.:
         starts_ends = get_audio_limits(audio_file.duration)
         if starts_ends:
             for start, end in starts_ends:
-                outpath = OUTPATH
                 fileout = audio_file.segment(start=start,
                                              end=end,
                                              outpath=outpath)
                 out_files.append(fileout)
                 offsets.append(start)
-        else:
-            # TODO convert to wav
-            out_files = [audio_file, audio_file]
-            offsets = [0,0]
+    else:
+        # TODO convert to wav
+        fileout = audio_file.segment(start=0.0,
+                                     end=audio_file.duration,
+                                     outpath=outpath)
+        out_files = [fileout, fileout]
+        offsets = [0,0]
     return out_files, offsets
 
 def get_audio_limits(duration):
@@ -128,12 +132,20 @@ def fsg_search(text_snippet, audio_snippet, offset_seconds,
         search_snippet = copy(text_snippet)
         match_result = find_match(result_sequence, search_snippet)
         # assert that offset_seconds is zero
-        result_seconds = offset_seconds + match_result[0]
+        if match_result:
+            result_seconds = offset_seconds + match_result[0]
+        else:
+            result_seconds = offset_seconds
+            search_snippet = text_snippet
     elif option == 'ending':
         search_snippet = copy(text_snippet)[::-1]
         match_result = find_match(result_sequence[::-1], search_snippet)
-        result_seconds = offset_seconds + match_result[1]
-        search_snippet = search_snippet[::-1]
+        if match_result:
+            result_seconds = offset_seconds + match_result[1]
+            search_snippet = search_snippet[::-1]
+        else:
+            result_seconds = end_time # input total duration
+            search_snippet = text_snippet
     else:
         raise ValueError('option %s not known'%option)
     return result_seconds, search_snippet
@@ -156,7 +168,7 @@ def find_match(full_sequence, search_sequence):
         if not match:
             search_sequence.pop(0)
     if not match:
-        logging.error('match not found for %s'%'filename')
+        logging.error('match not found ')
     return match
 
 def sequence_match(full_sequence, search_sequence):
