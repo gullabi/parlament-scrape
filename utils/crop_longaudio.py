@@ -36,9 +36,9 @@ def crop_longaudio(text, audio_file):
     for i, (text_snippet, audio_snippet) in enumerate(zip(text_snippets,
                                                      audio_snippets)):
         if i == 0:
-            option = 'beginning'
+            operation = 'beginning'
         elif i == 1:
-            option = 'ending'
+            operation = 'ending'
         else:
             msg = 'For the file %s audio and text snippets are more than two'\
                   %audio_file
@@ -46,9 +46,11 @@ def crop_longaudio(text, audio_file):
         match_results.append(fsg_search(text_snippet,
                                         audio_snippet,
                                         audio_offsets[i],
-                                        option=option))
+                                        operation=operation))
     print(match_results)
-    new_text = get_global_text(text, match_results)
+    new_text = ''
+    if match_results[0][0] and match_results[1][0]:
+        new_text = get_global_text(text, match_results)
     return (match_results[0][0], match_results[1][0], new_text)
 
 def get_text_start_end(text):
@@ -90,7 +92,7 @@ def get_audio_limits(duration):
     return [(0.0, 60.0),(duration-60.0, duration)]
 
 def fsg_search(text_snippet, audio_snippet, offset_seconds,
-                                                           option='beginning'):
+                                         operation='beginning', option='safe'):
     fsg_file = generate_fsg(text_snippet)
     CONFIG['jsgf'] = fsg_file
     CONFIG['audio_file'] = audio_snippet
@@ -111,29 +113,35 @@ def fsg_search(text_snippet, audio_snippet, offset_seconds,
         yaml.dump(result_sequence, out)
     # delete fsg files
     # should return the best match text snippet with beginning end
-    if option == 'beginning':
+    if operation == 'beginning':
         search_snippet = copy(text_snippet)
         match_result = find_match(result_sequence, search_snippet)
         # assert that offset_seconds is zero
         if match_result:
             result_seconds = offset_seconds + match_result[0]
         else:
-            result_seconds = offset_seconds
-            search_snippet = text_snippet
-    elif option == 'ending':
+            if option == 'safe':
+                result_seconds, search_snippet = None, []
+            else:
+                result_seconds = offset_seconds
+                search_snippet = text_snippet
+    elif operation == 'ending':
         search_snippet = copy(text_snippet)[::-1]
         match_result = find_match(result_sequence[::-1], search_snippet)
         if match_result:
             result_seconds = offset_seconds + match_result[1]
             search_snippet = search_snippet[::-1]
         else:
-            # get result second from the audio_snippet filename
-            m = re.search('.+_\d+\.\d+_(\d+\.\d+).wav', audio_snippet)
-            if m:
-                result_seconds = float(m.groups()[0])
+            if option == 'safe':
+                result_seconds, search_snippet = None, []
             else:
-                result_seconds = end_time # input total duration
-            search_snippet = text_snippet
+                # get result second from the audio_snippet filename
+                m = re.search('.+_\d+\.\d+_(\d+\.\d+).wav', audio_snippet)
+                if m:
+                    result_seconds = float(m.groups()[0])
+                else:
+                    result_seconds = end_time # input total duration
+                search_snippet = text_snippet
     else:
         raise ValueError('option %s not known'%option)
     return result_seconds, search_snippet
