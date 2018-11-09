@@ -5,7 +5,7 @@ import yaml
 import logging
 
 from utils.audio import Audio
-from utils.crop_longaudio import crop_longaudio 
+from utils.crop_longaudio import Trimmer 
 
 def main(audio_filepath, text_filepath):
     text = get_text(text_filepath)
@@ -13,7 +13,8 @@ def main(audio_filepath, text_filepath):
     clean_text = re.sub(token_clean,' ',text).lower()
     clean_text = re.sub(' {2,}', ' ', clean_text)
     audio_file = Audio(audio_filepath)
-    start, end, new_text = crop_longaudio(clean_text, audio_file)
+    trimmer = Trimmer(clean_text, audio_file)
+    start, end, new_text = trimmer.crop_longaudio()
     print(start, end, new_text)
 
 def get_text(text_file):
