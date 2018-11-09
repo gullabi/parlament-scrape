@@ -5,7 +5,7 @@ import yaml
 import logging
 
 from utils.audio import Audio
-from utils.crop_longaudio import Trimmer 
+from utils.trimmer import Trimmer
 
 def main(audio_filepath, text_filepath):
     text = get_text(text_filepath)
