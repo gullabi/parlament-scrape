@@ -5,9 +5,12 @@ import logging
 
 from copy import copy
 from pocketsphinx import AudioFile, get_model_path, get_data_path
-from subprocess import call
+from subprocess import call, Popen, PIPE
 
+FILE_PATH = os.path.abspath(os.path.dirname(__file__))
 MODEL_PATH = '/home/baybars/scripts/repositories/cmusphinx-models'
+DICT_PATH = os.path.join(MODEL_PATH, 'ca-es/pronounciation-dictionary.dict')
+CONV_PATH = os.path.join(FILE_PATH, 'UPC_samba2cmu_conversion.csv')
 CONFIG = {
     'verbose': False,
     'audio_file': '',
@@ -17,9 +20,13 @@ CONFIG = {
     'keyphrase': None,
     'hmm': os.path.join(MODEL_PATH, 'ca-es/acoustic-model'),
     'lm': False,
-    'dict': os.path.join(MODEL_PATH, 'ca-es/pronounciation-dictionary.dict'),
+    'dict': DICT_PATH,
     'frate': 100 # frames per second (default=100)
 }
+DICT = {line.strip().split()[0]: ' '.join(line.strip().split()[1:])\
+        for line in open(CONFIG['dict']).readlines()}
+CONV_DICT = {line.strip().split(',')[2]: line.strip().split(',')[3]\
+             for line in open(os.path.join(CONV_PATH)).readlines()}
 OUTPATH = './test'
 JSGF = '''
 #JSGF V1.0;
@@ -167,14 +174,51 @@ class Trimmer(object):
         return result_seconds, search_snippet
 
     def generate_fsg(self, text_snippets, operation):
-        # use a disctinctive name for the temporary files
+        '''Creates the grammar file and also the dictionary file if necessary
+        '''
         basename = os.path.basename(self.audio_file.filepath).split('.')[0]
-        filename = '_'.join([basename, operation])+'.jsgf'
-        fsg_path = os.path.join(OUTPATH, filename)
+        CONFIG['dict'] = DICT_PATH # reverting back the dict path just in case
+        # check if tokens are in phonetic dictionary
+        missing_tokens = []
+        for token in text_snippets:
+            if token not in DICT:
+                missing_tokens.append(token)
+        if missing_tokens:
+            g2p = self.get_token_phonemes(missing_tokens)
+            # write a new dict file
+            dict_filename = '_'.join([basename, operation])+'.dict'
+            dict_path = os.path.join(OUTPATH, dict_filename)
+            with open(dict_path, 'w') as out:
+                for token in text_snippets:
+                    ph = DICT.get(token) or g2p.get(token)
+                    print(token)
+                    out.write('%s\t%s\n'%(token, ph))
+            CONFIG['dict'] = dict_path
+
+        # write the fsg grammar to a file 
+        fsg_filename = '_'.join([basename, operation])+'.jsgf'
+        fsg_path = os.path.join(OUTPATH, fsg_filename)
         fsg_query = ' | '.join(text_snippets)+';'
         with open(fsg_path,'w') as out:
             out.write(JSGF%fsg_query)
         return fsg_path
+
+    def get_token_phonemes(self, tokens):
+        cmd_st = 'espeak -vca \'%s\' --ipa=3 -q | '\
+              'sed \'s/aɪ/a_j/g\' | sed \'s/v/ʋ/g\''
+        g2p = {}
+        for token in tokens:
+            cmd = (cmd_st%token).split()
+            process = Popen(cmd, stdout=PIPE, stderr=PIPE)
+            stdout, stderr = process.communicate()
+            phonemes = stdout.decode('utf8').strip()
+            phonemes_ls = phonemes.strip().replace('ˈ','').replace('ˌ','')\
+                                          .replace(' ','_').split('_')
+            cmu_phonemes = []
+            for phoneme in phonemes_ls:
+                cmu_phonemes.append(CONV_DICT[phoneme])
+            g2p[token] = ' '.join(cmu_phonemes)
+        return g2p
 
     def find_match(self, full_sequence, search_sequence):
         '''Searches for an exact match with gradually shorter search sequences
