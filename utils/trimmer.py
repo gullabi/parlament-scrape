@@ -5,6 +5,7 @@ import logging
 
 from copy import copy
 from pocketsphinx import AudioFile, get_model_path, get_data_path
+from subprocess import call
 
 MODEL_PATH = '/home/baybars/scripts/repositories/cmusphinx-models'
 CONFIG = {
@@ -34,6 +35,7 @@ class Trimmer(object):
     def __init__(self, text, audio_file, option='safe'):
         self.text = text
         self.audio_file = audio_file
+        self.fsg_result_files = []
 
     def __str__(self):
         return 'TrimmerObject(%s)'%self.audio_file.filepath
@@ -60,6 +62,8 @@ class Trimmer(object):
         new_text = ''
         if match_results[0][0] and match_results[1][0]:
             new_text = self.get_global_text(text, match_results)
+            for f in self.fsg_result_files:
+                self.remove_file(f)
         return (match_results[0][0], match_results[1][0], new_text)
 
     @staticmethod
@@ -85,7 +89,6 @@ class Trimmer(object):
                     out_files.append(fileout)
                     offsets.append(start)
         else:
-            # TODO convert to wav
             fileout = self.audio_file.segment(start=0.0,
                                               end=self.audio_file.duration,
                                               outpath=outpath)
@@ -104,7 +107,13 @@ class Trimmer(object):
 
     def fsg_search(self, text_snippet, audio_snippet, offset_seconds,
                                              operation='beginning', option='safe'):
-        fsg_file = self.generate_fsg(text_snippet)
+        # create grammar file for the fsg search
+        fsg_file = self.generate_fsg(text_snippet, operation)
+
+        # store the name of the file which stores the search results
+        fsg_result_file = fsg_file.replace('.jsgf','.yaml')
+        self.fsg_result_files.append(fsg_result_file)
+
         CONFIG['jsgf'] = fsg_file
         CONFIG['audio_file'] = audio_snippet
         audio = AudioFile(**CONFIG)
@@ -120,9 +129,9 @@ class Trimmer(object):
                     result_sequence.append((start_time,
                                             end_time,
                                             s.word))
-        with open(fsg_file+'.yml','w') as out:
+        with open(fsg_result_file, 'w') as out:
             yaml.dump(result_sequence, out)
-        # delete fsg files
+        self.remove_file(fsg_file)
         # should return the best match text snippet with beginning end
         if operation == 'beginning':
             search_snippet = copy(text_snippet)
@@ -157,9 +166,10 @@ class Trimmer(object):
             raise ValueError('option %s not known'%option)
         return result_seconds, search_snippet
 
-    def generate_fsg(self, text_snippets):
+    def generate_fsg(self, text_snippets, operation):
         # use a disctinctive name for the temporary files
-        filename = ''.join(text_snippets)[:7]+'.jsgf'
+        basename = os.path.basename(self.audio_file.filepath).split('.')[0]
+        filename = '_'.join([basename, operation])+'.jsgf'
         fsg_path = os.path.join(OUTPATH, filename)
         fsg_query = ' | '.join(text_snippets)+';'
         with open(fsg_path,'w') as out:
@@ -193,6 +203,11 @@ class Trimmer(object):
         return False
 
     @staticmethod 
+    def remove_file(filepath):
+        cmd = ['rm', filepath]
+        call(cmd)
+
+    @staticmethod
     def get_global_text(text, match_results):
         start_text = ' '.join(match_results[0][1])
         end_text = ' '.join(match_results[1][1])
