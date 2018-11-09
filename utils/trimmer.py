@@ -130,9 +130,8 @@ class Trimmer(object):
             for s in phrase.seg():
                 start_time = s.start_frame / CONFIG['frate']
                 end_time = s.end_frame / CONFIG['frate']
-                if start_time != end_time:
-                    # getting rid if NULL elements
-                    # TODO get rid of silences that are not "too long"
+                if start_time != end_time and s.word != '<sil>':
+                    # getting rid if NULL elements and silences
                     result_sequence.append((start_time,
                                             end_time,
                                             s.word))
@@ -191,7 +190,6 @@ class Trimmer(object):
             with open(dict_path, 'w') as out:
                 for token in text_snippets:
                     ph = DICT.get(token) or g2p.get(token)
-                    print(token)
                     out.write('%s\t%s\n'%(token, ph))
             CONFIG['dict'] = dict_path
 
