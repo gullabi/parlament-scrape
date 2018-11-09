@@ -10,8 +10,12 @@ from datetime import datetime, timedelta
 from multiprocessing import Pool
 from tqdm import *
 
-from utils.clean import structure_clean, punctuation_normalize, hyphenfix
-from utils.download import download_files, download_files_star
+from utils.clean import structure_clean, punctuation_normalize, hyphenfix,\
+                        tokenize
+from utils.download import download_files, download_files_star,\
+                           create_local_paths
+from utils.audio import Audio
+from utils.trimmer import Trimmer
 
 lexicon = 'utils/lexicon_set_ca.bin'
 with open(lexicon, 'rb') as lexicon_file:
@@ -21,6 +25,7 @@ token_clean = '\.|,|:|;|!|\?|"|\.\.\.|\(|\)|–|-#| - |’|‘|¿|¡| · | \' |\
 
 def main(option):
     cache_file = 'processed_session_texts.json'
+    base_path = 'audio'
     if os.path.isfile(cache_file):
         candidates = yaml.load(open(cache_file, 'r'))
     else:
@@ -38,8 +43,8 @@ def main(option):
     if candidates:
         with open('processed_session_texts.json', 'w') as out:
             yaml.dump(candidates, out)
-    download_media(candidates, threads=3, base_path='audio')
-    #crop_media(candidates)
+    #download_media(candidates, threads=3, base_path=base_path)
+    crop_media(candidates, base_path)
 
 def get_candidates(candidates, path='sessions'):
     for session in os.listdir(path):
@@ -168,6 +173,28 @@ def prepare_for_download(candidates):
         for key, value in session.items():
             urls.append((key, value['text'], value['urls'][0][1]))
     return urls
+
+def crop_media(candidates, base_path):
+    for session in candidates.values():
+        for text_path, contents in session.items():
+            # the url element should always have a single file
+            paths = create_local_paths(base_path, (text_path, '',
+                                                   contents['urls'][0][1]))
+            if os.path.isfile(paths['audio_path']):
+                # only process single speaker interventions
+                if len(contents['text']) == 1:
+                    text = contents['text'][0][1]
+                    full_text = ' '.join(tokenize(text)).lower()
+                    clean_text = re.sub(token_clean, '', full_text)
+                    audio_file = Audio(paths['audio_path'])
+                    trimmer = Trimmer(clean_text, audio_file)
+                    try:
+                        start, end, new_text = trimmer.crop_longaudio()
+                    except Exception as e:
+                        print(e)
+                        print((clean_text[:100], clean_text[-100:]))
+                        raise ValueError()
+                    print(start, end, new_text)
 
 if __name__ == "__main__":
     option = sys.argv[1]
