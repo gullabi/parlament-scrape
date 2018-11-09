@@ -80,12 +80,12 @@ class Trimmer(object):
         offsets = []
         outpath = OUTPATH
         if self.audio_file.duration > 100.:
-            starts_ends = self.get_audio_limits(audio_file.duration)
+            starts_ends = self.get_audio_limits(self.audio_file.duration)
             if starts_ends:
                 for start, end in starts_ends:
-                    fileout = audio_file.segment(start=start,
-                                                 end=end,
-                                                 outpath=outpath)
+                    fileout = self.audio_file.segment(start=start,
+                                                      end=end,
+                                                      outpath=outpath)
                     out_files.append(fileout)
                     offsets.append(start)
         else:
