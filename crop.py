@@ -15,7 +15,7 @@ def main(audio_filepath, text_filepath):
     audio_file = Audio(audio_filepath)
     trimmer = Trimmer(clean_text, audio_file)
     start, end, new_text = trimmer.crop_longaudio()
-    print(start, end, new_text)
+    print(start, end, new_text[:100], new_text[-100:])
 
 def get_text(text_file):
     text_dict = yaml.load(open(text_file))

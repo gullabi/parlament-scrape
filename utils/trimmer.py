@@ -7,6 +7,8 @@ from copy import copy
 from pocketsphinx import AudioFile, get_model_path, get_data_path
 from subprocess import call, Popen, PIPE
 
+from utils.seq_aligner import needle, finalize
+
 FILE_PATH = os.path.abspath(os.path.dirname(__file__))
 MODEL_PATH = '/home/baybars/scripts/repositories/cmusphinx-models'
 DICT_PATH = os.path.join(MODEL_PATH, 'ca-es/pronounciation-dictionary.dict')
@@ -68,7 +70,7 @@ class Trimmer(object):
         print(match_results)
         new_text = ''
         if match_results[0][0] and match_results[1][0]:
-            new_text = self.get_global_text(text, match_results)
+            new_text = self.get_global_text(self.text, match_results)
             for f in self.fsg_result_files:
                 self.remove_file(f)
         return (match_results[0][0], match_results[1][0], new_text)
@@ -141,7 +143,8 @@ class Trimmer(object):
         # should return the best match text snippet with beginning end
         if operation == 'beginning':
             search_snippet = copy(text_snippet)
-            match_result = self.find_match(result_sequence, search_snippet)
+            match_result, search_snippet = self.find_match(result_sequence,
+                                                           search_snippet)
             # assert that offset_seconds is zero
             if match_result:
                 result_seconds = offset_seconds + match_result[0]
@@ -153,7 +156,8 @@ class Trimmer(object):
                     search_snippet = text_snippet
         elif operation == 'ending':
             search_snippet = copy(text_snippet)[::-1]
-            match_result = self.find_match(result_sequence[::-1], search_snippet)
+            match_result, search_snippet = self.find_match(result_sequence[::-1],
+                                                           search_snippet)
             if match_result:
                 result_seconds = offset_seconds + match_result[1]
                 search_snippet = search_snippet[::-1]
@@ -222,13 +226,33 @@ class Trimmer(object):
         '''Searches for an exact match with gradually shorter search sequences
         '''
         match = []
-        while len(search_sequence) > 2 and not match:
-            match = self.sequence_match(full_sequence, search_sequence)
-            if not match:
-                search_sequence.pop(0)
+        search_length = len(search_sequence)
+        while search_length > 2 and not match:
+            for sequence_combination in self.get_seq_combinations(
+                                               search_sequence, search_length):
+                match = self.sequence_match(full_sequence, sequence_combination)
+                if match:
+                    search_sequence = copy(sequence_combination)
+                    break
+                search_length -= 1
         if not match:
             logging.error('match not found ')
-        return match
+        return match, search_sequence
+
+    @staticmethod
+    def get_seq_combinations(sequence, length):
+        '''Gives the combinations of the subsequences of the desired length
+        '''
+        if length > len(sequence):
+            msg = 'subsequence length cannot be larger than the sequence'\
+                  ' length: %i vs from a total of %i'%(length, len(sequence))
+            raise ValueError(msg)
+        combinations = []
+        for i, val in enumerate(sequence):
+            if i+length > len(sequence):
+                break
+            combinations.append(sequence[i:i+length])
+        return combinations
 
     @staticmethod
     def sequence_match(full_sequence, search_sequence):

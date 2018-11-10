@@ -194,7 +194,8 @@ def crop_media(candidates, base_path):
                         print(e)
                         print((clean_text[:100], clean_text[-100:]))
                         raise ValueError()
-                    print(start, end, new_text)
+                    print(text_path)
+                    print(start, end, new_text[:100], new_text[-100:])
 
 if __name__ == "__main__":
     option = sys.argv[1]
