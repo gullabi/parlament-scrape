@@ -16,8 +16,13 @@ def main(audio_filepath, text_filepath):
     audio_file = Audio(audio_filepath)
     trimmer = Trimmer(clean_text, audio_file)
     start, end, start_word_index, end_word_index = trimmer.crop_longaudio()
-    print(start, end, tokenized_text.split()[start_word_index],
-                      tokenized_text.split()[end_word_index-1])
+    if start and end:
+        if end_word_index == None:
+            end_word_index = -1
+        else:
+            end_word_index += 1
+        print(start, end, tokenized_text.split()[start_word_index],
+                      tokenized_text.split()[end_word_index])
 
 def get_text(text_file):
     text_dict = yaml.load(open(text_file))

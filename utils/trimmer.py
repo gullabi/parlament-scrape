@@ -44,13 +44,14 @@ class Trimmer(object):
     def __init__(self, text, audio_file, option='safe'):
         self.text = text
         self.audio_file = audio_file
+        self.n = 5
         self.fsg_result_files = []
 
     def __str__(self):
         return 'TrimmerObject(%s)'%self.audio_file.filepath
 
     def crop_longaudio(self):
-        text_snippets = self.get_text_start_end(self.text)
+        text_snippets = self.get_text_start_end(self.text, self.n)
         audio_snippets, audio_offsets = self.get_audio_start_end()
         match_results = []
         for i, (text_snippet, audio_snippet) in enumerate(zip(text_snippets,
@@ -67,24 +68,21 @@ class Trimmer(object):
                                                  audio_snippet,
                                                  audio_offsets[i],
                                                  operation=operation))
-        print(match_results)
         new_text = ''
         if match_results[0][0] and match_results[1][0]:
             new_text = self.get_global_text()
             for f in self.fsg_result_files:
                 self.remove_file(f)
-        print(self.text.split()[self.beginning_word_index],
-                self.text.split()[self.ending_word_index-1])
         return (match_results[0][0], match_results[1][0],
                 self.beginning_word_index, self.ending_word_index)
 
     @staticmethod
-    def get_text_start_end(text):
-        '''returns the first and last 6 words. 
+    def get_text_start_end(text, n):
+        '''returns the first and last n words.
            TODO clean the text?
         '''
         words = text.split()
-        return [words[:6], words[-6:]]
+        return [words[:n], words[-1*n:]]
 
     def get_audio_start_end(self):
         audio_filepath = self.audio_file.filepath
@@ -131,7 +129,6 @@ class Trimmer(object):
         audio = AudioFile(**CONFIG)
         result_sequence = []
         for phrase in audio:
-            #print(phrase.probability(), phrase.score(), phrase.confidence())
             for s in phrase.seg():
                 start_time = s.start_frame / CONFIG['frate']
                 end_time = s.end_frame / CONFIG['frate']
@@ -143,6 +140,7 @@ class Trimmer(object):
         with open(fsg_result_file, 'w') as out:
             yaml.dump(result_sequence, out)
         self.remove_file(fsg_file)
+        self.remove_file(audio_snippet)
         # should return the best match text snippet with beginning end
         if operation == 'beginning':
             search_snippet = copy(text_snippet)
@@ -157,6 +155,7 @@ class Trimmer(object):
             else:
                 if option == 'safe':
                     result_seconds, search_snippet = None, []
+                    self.beginning_word_index = None
                 else:
                     result_seconds = offset_seconds
                     search_snippet = text_snippet
@@ -176,6 +175,7 @@ class Trimmer(object):
             else:
                 if option == 'safe':
                     result_seconds, search_snippet = None, []
+                    self.ending_word_index = 0
                 else:
                     # get result second from the audio_snippet filename
                     m = re.search('.+_\d+\.\d+_(\d+\.\d+).wav', audio_snippet)

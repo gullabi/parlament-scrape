@@ -174,28 +174,57 @@ def prepare_for_download(candidates):
             urls.append((key, value['text'], value['urls'][0][1]))
     return urls
 
-def crop_media(candidates, base_path):
-    for session in candidates.values():
+def crop_media(candidates, base_path, out_path='for_axlotl'):
+    for session_id, session in candidates.items():
+        result_top_path = os.path.join(out_path, session_id)
+        if not os.path.isdir(result_top_path):
+            os.makedirs(result_top_path)
         for text_path, contents in session.items():
             # the url element should always have a single file
             paths = create_local_paths(base_path, (text_path, '',
                                                    contents['urls'][0][1]))
+            result_basename = os.path.basename(paths['audio_path']).\
+                                                                  split('.')[0]
+            result_text =  os.path.join(result_top_path, result_basename)+\
+                                                                         '.txt'
+            # if audio file exists
             if os.path.isfile(paths['audio_path']):
-                # only process single speaker interventions
-                if len(contents['text']) == 1:
-                    text = contents['text'][0][1]
-                    full_text = ' '.join(tokenize(text)).lower()
-                    clean_text = re.sub(token_clean, '', full_text)
-                    audio_file = Audio(paths['audio_path'])
-                    trimmer = Trimmer(clean_text, audio_file)
-                    try:
-                        start, end, new_text = trimmer.crop_longaudio()
-                    except Exception as e:
-                        print(e)
-                        print((clean_text[:100], clean_text[-100:]))
-                        raise ValueError()
-                    print(text_path)
-                    print(start, end, new_text[:100], new_text[-100:])
+                # if there is only one speaker in the intervention
+                if os.path.isfile(result_text):
+                    msg = 'skipping. processed text file %s exists'%result_text
+                    logging.info(msg)
+                else:
+                    if len(contents['text']) == 1:
+                        text = contents['text'][0][1]
+                        full_text = ' '.join(tokenize(text)).lower()
+                        clean_text = re.sub(token_clean, '', full_text)
+                        audio_file = Audio(paths['audio_path'])
+                        trimmer = Trimmer(clean_text, audio_file)
+                        try:
+                            start, end, start_word_i, end_word_i =\
+                                                        trimmer.crop_longaudio()
+                        except Exception as e:
+                            print(e)
+                            print((clean_text[:100], clean_text[-100:]))
+                            raise ValueError()
+                        print(text_path)
+                        if start and end:
+                            msg = '%s start and end matched for cropping'\
+                                  %contents['text']
+                            full_words = full_text.split()
+                            new_text = ' '.join(full_words[start_word_i:\
+                                                           end_word_i])
+                            print(start, end, new_text[:100],
+                                              new_text[-100:])
+                            with open(result_text, 'w') as out:
+                                out.write(new_text)
+                            result_audio = audio_file.segment(start=start,
+                                                              end=end+0.2,
+                                                       outpath=result_top_path)
+                            print(result_audio, result_text)
+                        else:
+                            msg = '%s matching the start and end failed'\
+                                  %contents['text']
 
 if __name__ == "__main__":
     option = sys.argv[1]
