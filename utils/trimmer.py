@@ -70,10 +70,13 @@ class Trimmer(object):
         print(match_results)
         new_text = ''
         if match_results[0][0] and match_results[1][0]:
-            new_text = self.get_global_text(self.text, match_results)
+            new_text = self.get_global_text()
             for f in self.fsg_result_files:
                 self.remove_file(f)
-        return (match_results[0][0], match_results[1][0], new_text)
+        print(self.text.split()[self.beginning_word_index],
+                self.text.split()[self.ending_word_index-1])
+        return (match_results[0][0], match_results[1][0],
+                self.beginning_word_index, self.ending_word_index)
 
     @staticmethod
     def get_text_start_end(text):
@@ -143,24 +146,33 @@ class Trimmer(object):
         # should return the best match text snippet with beginning end
         if operation == 'beginning':
             search_snippet = copy(text_snippet)
-            match_result, search_snippet = self.find_match(result_sequence,
+            match_result, search_snippet_ind = self.find_match(result_sequence,
                                                            search_snippet)
             # assert that offset_seconds is zero
             if match_result:
                 result_seconds = offset_seconds + match_result[0]
+                search_snippet = search_snippet[search_snippet_ind[0]:\
+                                                search_snippet_ind[1]]
+                self.beginning_word_index = search_snippet_ind[0]
             else:
                 if option == 'safe':
                     result_seconds, search_snippet = None, []
                 else:
                     result_seconds = offset_seconds
                     search_snippet = text_snippet
+                    self.beginning_word_index = 0
         elif operation == 'ending':
             search_snippet = copy(text_snippet)[::-1]
-            match_result, search_snippet = self.find_match(result_sequence[::-1],
+            match_result, search_snippet_ind = self.find_match(result_sequence[::-1],
                                                            search_snippet)
             if match_result:
                 result_seconds = offset_seconds + match_result[1]
-                search_snippet = search_snippet[::-1]
+                search_snippet = search_snippet[search_snippet_ind[0]:\
+                                                search_snippet_ind[1]][::-1]
+                if search_snippet_ind[0] == 0:
+                    self.ending_word_index = None
+                else:
+                    self.ending_word_index = -1*search_snippet_ind[0]
             else:
                 if option == 'safe':
                     result_seconds, search_snippet = None, []
@@ -171,6 +183,7 @@ class Trimmer(object):
                         result_seconds = float(m.groups()[0])
                     else:
                         result_seconds = end_time # input total duration
+                        self.ending_word_index = None
                     search_snippet = text_snippet
         else:
             raise ValueError('option %s not known'%option)
@@ -227,20 +240,23 @@ class Trimmer(object):
         '''
         match = []
         search_length = len(search_sequence)
+        search_sequence_indicies = (None, None)
         while search_length > 2 and not match:
-            for sequence_combination in self.get_seq_combinations(
+            for c_indicies in self.get_seq_combination_ind(
                                                search_sequence, search_length):
+                sequence_combination = search_sequence[c_indicies[0]:\
+                                                       c_indicies[1]]
                 match = self.sequence_match(full_sequence, sequence_combination)
                 if match:
-                    search_sequence = copy(sequence_combination)
+                    search_sequence_indicies = c_indicies
                     break
                 search_length -= 1
         if not match:
             logging.error('match not found ')
-        return match, search_sequence
+        return match, search_sequence_indicies
 
     @staticmethod
-    def get_seq_combinations(sequence, length):
+    def get_seq_combination_ind(sequence, length):
         '''Gives the combinations of the subsequences of the desired length
         '''
         if length > len(sequence):
@@ -251,7 +267,7 @@ class Trimmer(object):
         for i, val in enumerate(sequence):
             if i+length > len(sequence):
                 break
-            combinations.append(sequence[i:i+length])
+            combinations.append((i,i+length))
         return combinations
 
     @staticmethod
@@ -273,8 +289,8 @@ class Trimmer(object):
         cmd = ['rm', filepath]
         call(cmd)
 
-    @staticmethod
-    def get_global_text(text, match_results):
+    def get_global_text(self):
+        '''
         start_text = ' '.join(match_results[0][1])
         end_text = ' '.join(match_results[1][1])
         start_index = text.find(start_text)
@@ -282,4 +298,6 @@ class Trimmer(object):
         if start_index == -1 or end_index < len(end_text):
             msg = 'having difficulty finding the new start or/and end'
             raise ValueError(msg)
-        return text[start_index:end_index]
+        '''
+        return ' '.join(self.text.split()[self.beginning_word_index:\
+                                              self.ending_word_index])

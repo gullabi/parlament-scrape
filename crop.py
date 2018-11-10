@@ -6,16 +6,18 @@ import logging
 
 from utils.audio import Audio
 from utils.trimmer import Trimmer
+from utils.clean import tokenize
 
 def main(audio_filepath, text_filepath):
     text = get_text(text_filepath)
     token_clean = '\.|,|;|:|\?|!|\.\.\.'
-    clean_text = re.sub(token_clean,' ',text).lower()
-    clean_text = re.sub(' {2,}', ' ', clean_text)
+    tokenized_text = ' '.join(tokenize(text))
+    clean_text = re.sub(token_clean,'',tokenized_text).lower()
     audio_file = Audio(audio_filepath)
     trimmer = Trimmer(clean_text, audio_file)
-    start, end, new_text = trimmer.crop_longaudio()
-    print(start, end, new_text[:100], new_text[-100:])
+    start, end, start_word_index, end_word_index = trimmer.crop_longaudio()
+    print(start, end, tokenized_text.split()[start_word_index],
+                      tokenized_text.split()[end_word_index-1])
 
 def get_text(text_file):
     text_dict = yaml.load(open(text_file))
