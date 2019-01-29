@@ -1,6 +1,8 @@
 # parlament-scrape
 Scripts to scrape and post-process the pdfs of Parlament de Catalunya
 
+## Overview
+
 This repository consists a set of tools to process the plenary sessions of the Parlament de Catalunya.
 
 The scripts are capable of
@@ -17,4 +19,4 @@ in order to output a set of json files with each having the matched information 
 
 These scripts were developed in order to create the [ParlamentParla corpus](https://collectivat.cat/asr) which was possible thanks to the support of [Culture Department](http://cultura.gencat.cat/) of the Catalan autonomous government.
 
-<img src="https://github.com/collectivat/cmusphinx-models/tree/master/img/logo_generalitat.png" width="400"/>
+<img src="https://media.githubusercontent.com/media/collectivat/cmusphinx-models/master/img/logo_generalitat.png" width="400"/>
