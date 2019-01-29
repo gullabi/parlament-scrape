@@ -44,7 +44,7 @@ def main(option):
         with open('processed_session_texts.json', 'w') as out:
             yaml.dump(candidates, out)
     #download_media(candidates, threads=3, base_path=base_path)
-    crop_media(candidates, base_path)
+    prop_media(candidates, base_path)
 
 def get_candidates(candidates, path='sessions'):
     for session in os.listdir(path):
@@ -62,22 +62,23 @@ def get_candidate(session, path='sessions'):
     if not os.path.exists(speakers_file) or\
        not os.listdir(session_text_path):
         msg = 'speaker alignments of text files do not exist'\
-              ' for %s'%session
+               ' for %s'%session
         logging.warning(msg)
         return False
     for textfile in os.listdir(session_text_path):
-        filepath = os.path.join(session_text_path, textfile)
-        with open(filepath) as read,\
-             open(speakers_file) as sf:
-            text_dict = yaml.load(read)
-            speakers = yaml.load(sf)
-            msg = 'processing %s'%filepath
-            logging.info(msg)
-            if process_text(text_dict, speakers):
-                texts[filepath] = text_dict
-            else:
-                msg = '%s rejected'%filepath
+        if textfile.endswith('.yaml'):
+            filepath = os.path.join(session_text_path, textfile)
+            with open(filepath) as read,\
+                 open(speakers_file) as sf:
+                text_dict = yaml.load(read)
+                speakers = yaml.load(sf)
+                msg = 'processing %s'%filepath
                 logging.info(msg)
+                if process_text(text_dict, speakers):
+                    texts[filepath] = text_dict
+                else:
+                    msg = '%s rejected'%filepath
+                    logging.info(msg)
     return texts
 
 def process_text(interventions, speakers):
@@ -101,8 +102,8 @@ def process_text(interventions, speakers):
         logging.warning(msg)
     intervinent = list(intervinents)[0]
 
-    # if mesa intervention in the beginning or in the end, remove them
-    for i in [0, -1]:
+    # if mesa intervention in the end, remove it
+    for i in [-1]:
         intervention = interventions['text'][i]
         if intervention[0].strip() == text_mesa.strip():
             interventions['text'].pop(i)
@@ -136,7 +137,8 @@ def process_text(interventions, speakers):
     return True
 
 def clean_text(text):
-    clean_text = hyphenfix(punctuation_normalize(structure_clean(text)))
+    cleaner_text = hyphenfix(punctuation_normalize(structure_clean(text)))
+    clean_text = ' '.join(tokenize(cleaner_text))
     return clean_text
 
 def is_catalan(text, threshold=0.7):
@@ -225,6 +227,51 @@ def crop_media(candidates, base_path, out_path='for_axlotl'):
                         else:
                             msg = '%s matching the start and end failed'\
                                   %contents['text']
+
+def prop_media(candidates, base_path, out_path='for_axlotl'):
+    axlotl_input = []
+    for session_id, session in candidates.items():
+        result_top_path = os.path.join(out_path, session_id)
+        if not os.path.isdir(result_top_path):
+            os.makedirs(result_top_path)
+        for text_path, contents in session.items():
+            # the url element should always have a single file
+            paths = create_local_paths(base_path, (text_path, '',
+                                                   contents['urls'][0][1]))
+            result_basename = os.path.basename(paths['audio_path']).\
+                                                                  split('.')[0]
+            yaml_name = os.path.basename(text_path).split('.')[0]
+            text_filename = '-'.join([session_id,
+                                      yaml_name,
+                                      result_basename])+'.txt'
+            result_text =  os.path.join(result_top_path, text_filename)
+            # if audio file exists
+            if os.path.isfile(paths['audio_path']):
+                if os.path.isfile(result_text):
+                    msg = 'skipping. processed text file %s exists'%result_text
+                    #logging.info(msg)
+                else:
+                    # if there is one or two speaker in the intervention
+                    if len(contents['text']) < 3:
+                        text = ' '.join([text[1] for text in contents['text']])
+                        audio_file = Audio(paths['audio_path'])
+                        wps = len(text.split())/audio_file.duration*60
+                        # if wps reasonable accept as an axlotl input
+                        if wps < 95. or wps > 195:
+                            msg = '%s wps is not reasonable: %4.2f. skipping'\
+                                  %(text_path, wps)
+                            logging.warning(msg)
+                        else:
+                            with open(result_text, 'w') as out:
+                                out.write(text)
+                if os.path.isfile(result_text):
+                    #logging.info('text, audio: %s,%s'%(result_text,
+                    #                                   paths['audio_path']))
+                    axlotl_input.append((result_text,paths['audio_path']))
+        with open('axlotl_input.csv', 'w') as out:
+            for text, audio in axlotl_input:
+                out.write('%s,%s\n'%(os.path.abspath(text),
+                                     os.path.abspath(audio)))
 
 if __name__ == "__main__":
     option = sys.argv[1]
