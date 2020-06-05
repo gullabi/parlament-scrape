@@ -24,12 +24,12 @@ with open(lexicon, 'rb') as lexicon_file:
 token_clean = '\.|,|:|;|!|\?|"|\.\.\.|\(|\)|–|-#| - |’|‘|¿|¡| · | \' |\<i\>|\</i\>'
 
 def main(option):
-    cache_file = 'processed_session_texts.json'
+    candidates = {}
     base_path = 'audio'
-    if os.path.isfile(cache_file):
-        candidates = yaml.load(open(cache_file, 'r'))
-    else:
-        candidates = {}
+    if option == 'all':
+        cache_file = 'all_texts.yaml'
+        if os.path.isfile(cache_file):
+            candidates = yaml.load(open(cache_file, 'r'))
 
     if option == 'all':
         candidates = get_candidates(candidates)
@@ -37,14 +37,19 @@ def main(option):
         if not candidates.get(option):
             candidate = get_candidate(option)
             if candidate:
+                print('getting the single cadidate %s'%option)
                 candidates[option] = candidate
         else:
             logging.info('session %s already processed skipping'%option)
     if candidates:
-        with open('processed_session_texts.json', 'w') as out:
+        if option:
+            filename = "%s_texts.yaml"%option
+        else:
+            filename = 'processed_session_texts.json'
+        with open(filename, 'w') as out:
             yaml.dump(candidates, out)
     #download_media(candidates, threads=3, base_path=base_path)
-    prop_media(candidates, base_path)
+    #prop_media(candidates, base_path)
 
 def get_candidates(candidates, path='sessions'):
     for session in os.listdir(path):
@@ -133,7 +138,9 @@ def process_text(interventions, speakers):
 
     for i, intervention in enumerate(interventions['text']):
         cleaned_text = clean_text(intervention[1])
-        interventions['text'][i] = (intervention[0], cleaned_text)
+        msg = 'cleaning lengths %i vs %i'%(len(cleaned_text),len(intervention[1]))
+        logging.info(msg)
+        interventions['text'][i] = [intervention[0], cleaned_text]
     return True
 
 def clean_text(text):

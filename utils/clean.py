@@ -10,10 +10,10 @@ with open(lexicon, 'rb') as lexicon_file:
 token_sign = "(\.\.\.|!\"|!'|!|\?\"|\?'|\?|\.'|\.\"|\.)(?=( {1,}[A-ZÀÉÈÜÚÍÏÓÒÇ]|[A-ZÀÉÈÜÚÍÏÓÒÇ]))"
 re_token_limits = re.compile(token_sign)
 
-non_sp_captions = re.compile('\<i\>\(.+?\)\</i\>')
+non_sp_captions = re.compile('\<i\>\(.*?\) ?\</i\>')
 formatting = re.compile('\<.{1,3}\>')
 in_cbrackets = re.compile('{.+}')
-in_paranthesis = re.compile('\(.+\)')
+in_paranthesis = re.compile('\(.*?\)')
 w_spaces = re.compile(' {2,}')
 ws_dot = re.compile(' (?=(\.))')
 apostrophes = re.compile('`|’')
@@ -36,6 +36,7 @@ def main(filename):
 
 def structure_clean(text):
     text = text.replace('\xa0',' ')
+    text = text.replace('\xad','-')
     text = non_sp_captions.sub('',text)
     text = in_paranthesis.sub('',text)
     text = in_cbrackets.sub('',text)
