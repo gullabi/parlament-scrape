@@ -14,4 +14,4 @@ requests==2.20.0
 scraperwiki==0.5.1
 six==1.11.0
 SQLAlchemy==1.2.11
-urllib3==1.23
+urllib3==1.26.5
